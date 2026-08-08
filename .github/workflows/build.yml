@@ -99,6 +99,37 @@ jobs:
           print("Added logcat output for SSTP error details (2 sites).")
           PYEOF2
 
+      - name: PATCH kittoku SSLTerminal.kt - read SSL_CERT_DIR as a plain path, not a SAF tree URI
+        run: |
+          # По логу с включённым логированием (см. предыдущий патч): при указании
+          # сертификата сервера падает "IllegalArgumentException: Invalid URI" внутри
+          # DocumentsContract.getTreeDocumentId(), вызванного из DocumentFile.fromTreeUri().
+          # Причина: fromTreeUri() принципиально ожидает SAF tree-URI (content://...,
+          # выданный системным пикером ACTION_OPEN_DOCUMENT_TREE) — а SstpBridge.kt (наш
+          # код) кладёт сертификат (текст из поля "Сертификат сервера") в приватную папку
+          # приложения и передаёт туда ОБЫЧНЫЙ путь файловой системы. Это два разных API
+          # по архитектуре, не просто разный формат строки — никакая перекодировка пути
+          # в URI не заставит fromTreeUri() принять не-SAF-путь. Читаем директорию через
+          # java.io.File напрямую, в обход DocumentFile/SAF.
+          echo "ICAgIHByaXZhdGUgc3VzcGVuZCBmdW4gY3JlYXRlVHJ1c3RNYW5hZ2VycygpOiBBcnJheTxUcnVzdE1hbmFnZXI+PyB7CiAgICAgICAgdmFsIGRvY3VtZW50ID0gRG9jdW1lbnRGaWxlLmZyb21UcmVlVXJpKAogICAgICAgICAgICBicmlkZ2Uuc2VydmljZSwKICAgICAgICAgICAgZ2V0VVJJUHJlZlZhbHVlKE9zY1ByZWZLZXkuU1NMX0NFUlRfRElSLCBicmlkZ2UucHJlZnMpISEKICAgICAgICApISEKCiAgICAgICAgdmFsIGNlcnRGYWN0b3J5ID0gQ2VydGlmaWNhdGVGYWN0b3J5LmdldEluc3RhbmNlKCJYLjUwOSIpCiAgICAgICAgdmFsIGtleVN0b3JlID0gS2V5U3RvcmUuZ2V0RGVmYXVsdFR5cGUoKS5sZXQgewogICAgICAgICAgICBLZXlTdG9yZS5nZXRJbnN0YW5jZShpdCkKICAgICAgICB9CiAgICAgICAga2V5U3RvcmUubG9hZChudWxsLCBudWxsKQoKICAgICAgICBmb3IgKGZpbGUgaW4gZG9jdW1lbnQubGlzdEZpbGVzKCkpIHsKICAgICAgICAgICAgaWYgKGZpbGUuaXNGaWxlKSB7CiAgICAgICAgICAgICAgICB2YWwgc3RyZWFtID0gQnVmZmVyZWRJbnB1dFN0cmVhbShicmlkZ2Uuc2VydmljZS5jb250ZW50UmVzb2x2ZXIub3BlbklucHV0U3RyZWFtKGZpbGUudXJpKSkKICAgICAgICAgICAgICAgIHZhbCBjYTogWDUwOUNlcnRpZmljYXRlCgogICAgICAgICAgICAgICAgdHJ5IHsKICAgICAgICAgICAgICAgICAgICBjYSA9IGNlcnRGYWN0b3J5LmdlbmVyYXRlQ2VydGlmaWNhdGUoc3RyZWFtKSBhcyBYNTA5Q2VydGlmaWNhdGUKICAgICAgICAgICAgICAgIH0gY2F0Y2ggKGU6IENlcnRpZmljYXRlRXhjZXB0aW9uKSB7CiAgICAgICAgICAgICAgICAgICAgYnJpZGdlLmNvbnRyb2xNYWlsYm94LnNlbmQoQ29udHJvbE1lc3NhZ2UoV2hlcmUuQ0VSVCwgUmVzdWx0LkVSUl9QQVJTSU5HX0ZBSUxFRCwgZ2VuZXJhdGVQYXJzaW5nQ2VydExvZyhmaWxlLm5hbWUsIGUpKSkKCiAgICAgICAgICAgICAgICAgICAgcmV0dXJuIG51bGwKICAgICAgICAgICAgICAgIH0KCiAgICAgICAgICAgICAgICBrZXlTdG9yZS5zZXRDZXJ0aWZpY2F0ZUVudHJ5KGZpbGUubmFtZSwgY2EpCiAgICAgICAgICAgICAgICBzdHJlYW0uY2xvc2UoKQogICAgICAgICAgICB9CiAgICAgICAgfQoKICAgICAgICB2YWwgdG1GYWN0b3J5ID0gVHJ1c3RNYW5hZ2VyRmFjdG9yeS5nZXREZWZhdWx0QWxnb3JpdGhtKCkubGV0IHsKICAgICAgICAgICAgVHJ1c3RNYW5hZ2VyRmFjdG9yeS5nZXRJbnN0YW5jZShpdCkKICAgICAgICB9CiAgICAgICAgdG1GYWN0b3J5LmluaXQoa2V5U3RvcmUpCgogICAgICAgIHJldHVybiB0bUZhY3RvcnkudHJ1c3RNYW5hZ2VycwogICAgfQ==" | base64 -d > /tmp/sslcertdir_orig.txt
+          echo "ICAgIHByaXZhdGUgc3VzcGVuZCBmdW4gY3JlYXRlVHJ1c3RNYW5hZ2VycygpOiBBcnJheTxUcnVzdE1hbmFnZXI+PyB7CiAgICAgICAgLy8gUEFUQ0ggKNC90LUg0LIg0LDQv9GB0YLRgNC40LzQtSk6IERvY3VtZW50RmlsZS5mcm9tVHJlZVVyaSgpINC/0YDQuNC90YbQuNC/0LjQsNC70YzQvdC+INGC0YDQtdCx0YPQtdGCCiAgICAgICAgLy8g0L3QsNGB0YLQvtGP0YnQuNC5IFNBRiB0cmVlLVVSSSAoY29udGVudDovLy4uLiwg0LLRi9C00LDQvdC90YvQuSDRgdC40YHRgtC10LzQvdGL0Lwg0L/QuNC60LXRgNC+0Lwg0L/QsNC/0LrQuCwKICAgICAgICAvLyBBQ1RJT05fT1BFTl9ET0NVTUVOVF9UUkVFKSDigJQg0YMg0L3QsNGBINC20LUgU1NMX0NFUlRfRElSINCy0YHQtdCz0LTQsCDQvtCx0YvRh9C90YvQuSDQv9GD0YLRjAogICAgICAgIC8vINC/0YDQuNCy0LDRgtC90L7QuSDQv9Cw0L/QutC4INC/0YDQuNC70L7QttC10L3QuNGPICjRgdC8LiBTc3RwQnJpZGdlLmt0OiBjZXJ0RGlyLmFic29sdXRlUGF0aCwKICAgICAgICAvLyDRgdC10YDRgtC40YTQuNC60LDRgiDRgtGD0LTQsCDQutC70LDQtNGR0YLRgdGPINC40Lcg0YLQtdC60YHRgtCwLCDQstGB0YLQsNCy0LvQtdC90L3QvtCz0L4g0L/QvtC70YzQt9C+0LLQsNGC0LXQu9C10Lwg0LIg0L/QvtC70LUKICAgICAgICAvLyAi0KHQtdGA0YLQuNGE0LjQutCw0YIg0YHQtdGA0LLQtdGA0LAiLCDQsdC10Lcg0LrQsNC60L7Qs9C+LdC70LjQsdC+INCy0YvQsdC+0YDQsCDQv9Cw0L/QutC4KS4g0KDQsNC90YzRiNC1INGN0YLQviDQv9Cw0LTQsNC70L4g0YEKICAgICAgICAvLyAiSWxsZWdhbEFyZ3VtZW50RXhjZXB0aW9uOiBJbnZhbGlkIFVSSSIg0LLQvdGD0YLRgNC4IERvY3VtZW50c0NvbnRyYWN0IOKAlAogICAgICAgIC8vIGZyb21UcmVlVXJpKCkg0L3QtSDQv9GA0LjQvdC40LzQsNC10YIg0L/RgNC+0LjQt9Cy0L7Qu9GM0L3Ri9C1INC/0YPRgtC4INCyINC/0YDQuNC90YbQuNC/0LUsINC00LXQu9C+INC90LUg0LIKICAgICAgICAvLyDRhNC+0YDQvNCw0YLQtSDRgdGC0YDQvtC60LguINCn0LjRgtCw0LXQvCDQutCw0Log0L7QsdGL0YfQvdGD0Y4g0LTQuNGA0LXQutGC0L7RgNC40Y4g0YfQtdGA0LXQtyBqYXZhLmlvLkZpbGUuCiAgICAgICAgdmFsIGNlcnREaXJQYXRoID0gZ2V0U3RyaW5nUHJlZlZhbHVlKE9zY1ByZWZLZXkuU1NMX0NFUlRfRElSLCBicmlkZ2UucHJlZnMpCiAgICAgICAgdmFsIGNlcnREaXIgPSBqYXZhLmlvLkZpbGUoY2VydERpclBhdGgpCiAgICAgICAgdmFsIGNlcnRGaWxlcyA9IGNlcnREaXIubGlzdEZpbGVzKCkKICAgICAgICBpZiAoY2VydEZpbGVzID09IG51bGwpIHsKICAgICAgICAgICAgYnJpZGdlLmNvbnRyb2xNYWlsYm94LnNlbmQoQ29udHJvbE1lc3NhZ2UoV2hlcmUuQ0VSVCwgUmVzdWx0LkVSUl9QQVJTSU5HX0ZBSUxFRCwgIkNlcnRpZmljYXRlIGRpcmVjdG9yeSBub3QgZm91bmQ6ICRjZXJ0RGlyUGF0aCIpKQogICAgICAgICAgICByZXR1cm4gbnVsbAogICAgICAgIH0KCiAgICAgICAgdmFsIGNlcnRGYWN0b3J5ID0gQ2VydGlmaWNhdGVGYWN0b3J5LmdldEluc3RhbmNlKCJYLjUwOSIpCiAgICAgICAgdmFsIGtleVN0b3JlID0gS2V5U3RvcmUuZ2V0RGVmYXVsdFR5cGUoKS5sZXQgewogICAgICAgICAgICBLZXlTdG9yZS5nZXRJbnN0YW5jZShpdCkKICAgICAgICB9CiAgICAgICAga2V5U3RvcmUubG9hZChudWxsLCBudWxsKQoKICAgICAgICBmb3IgKGZpbGUgaW4gY2VydEZpbGVzKSB7CiAgICAgICAgICAgIGlmIChmaWxlLmlzRmlsZSkgewogICAgICAgICAgICAgICAgdmFsIHN0cmVhbSA9IEJ1ZmZlcmVkSW5wdXRTdHJlYW0oamF2YS5pby5GaWxlSW5wdXRTdHJlYW0oZmlsZSkpCiAgICAgICAgICAgICAgICB2YWwgY2E6IFg1MDlDZXJ0aWZpY2F0ZQoKICAgICAgICAgICAgICAgIHRyeSB7CiAgICAgICAgICAgICAgICAgICAgY2EgPSBjZXJ0RmFjdG9yeS5nZW5lcmF0ZUNlcnRpZmljYXRlKHN0cmVhbSkgYXMgWDUwOUNlcnRpZmljYXRlCiAgICAgICAgICAgICAgICB9IGNhdGNoIChlOiBDZXJ0aWZpY2F0ZUV4Y2VwdGlvbikgewogICAgICAgICAgICAgICAgICAgIGJyaWRnZS5jb250cm9sTWFpbGJveC5zZW5kKENvbnRyb2xNZXNzYWdlKFdoZXJlLkNFUlQsIFJlc3VsdC5FUlJfUEFSU0lOR19GQUlMRUQsIGdlbmVyYXRlUGFyc2luZ0NlcnRMb2coZmlsZS5uYW1lLCBlKSkpCgogICAgICAgICAgICAgICAgICAgIHJldHVybiBudWxsCiAgICAgICAgICAgICAgICB9CgogICAgICAgICAgICAgICAga2V5U3RvcmUuc2V0Q2VydGlmaWNhdGVFbnRyeShmaWxlLm5hbWUsIGNhKQogICAgICAgICAgICAgICAgc3RyZWFtLmNsb3NlKCkKICAgICAgICAgICAgfQogICAgICAgIH0KCiAgICAgICAgdmFsIHRtRmFjdG9yeSA9IFRydXN0TWFuYWdlckZhY3RvcnkuZ2V0RGVmYXVsdEFsZ29yaXRobSgpLmxldCB7CiAgICAgICAgICAgIFRydXN0TWFuYWdlckZhY3RvcnkuZ2V0SW5zdGFuY2UoaXQpCiAgICAgICAgfQogICAgICAgIHRtRmFjdG9yeS5pbml0KGtleVN0b3JlKQoKICAgICAgICByZXR1cm4gdG1GYWN0b3J5LnRydXN0TWFuYWdlcnMKICAgIH0=" | base64 -d > /tmp/sslcertdir_patched.txt
+          python3 - << 'PYEOF2'
+          path = "sstp/src/main/java/kittoku/osc/terminal/SSLTerminal.kt"
+          with open(path, "r") as f:
+              content = f.read()
+          with open("/tmp/sslcertdir_orig.txt") as f:
+              original = f.read()
+          with open("/tmp/sslcertdir_patched.txt") as f:
+              patched = f.read()
+          count = content.count(original)
+          if count != 1:
+              raise SystemExit(f"PATCH FAILED: expected 1 occurrence, found {count}")
+          content = content.replace(original, patched)
+          with open(path, "w") as f:
+              f.write(content)
+          print("SSL_CERT_DIR now read via java.io.File instead of SAF DocumentFile.")
+          PYEOF2
+
       - name: Download XTLS/libXray AAR (VLESS/Xray engine, official wrapper, prebuilt — no Go/gomobile needed)
         run: |
           mkdir -p app/libs

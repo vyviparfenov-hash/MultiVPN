@@ -12,6 +12,17 @@
      от того, используется ли плитка реально, и без регистрации это просто
      засоряло logcat ошибками "Couldn't find tile" при каждом изменении
      состояния подключения.
+
+     PATCH: BlankActivity регистрируем ОТДЕЛЬНО от MainActivity — у неё,
+     помимо launcher-режима (которого мы избегаем), есть и служебная роль:
+     это единственный обработчик клика по системному уведомлению "You can
+     download the untrusted server certificate" (см. SSLTerminal.kt,
+     notifyUntrustedCertificate() -> PendingIntent на BlankActivity с
+     EXTRA_KEY_TYPE=BLANK_ACTIVITY_TYPE_SAVE_CERT). Без регистрации клик по
+     уведомлению никуда не ведёт — Android просто закрывает шторку и
+     возвращает в приложение (нечего запускать). Intent-filter НЕ
+     добавляем — только явные intent'ы через PendingIntent, второго значка
+     запуска это не создаёт.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -23,6 +34,11 @@
     <uses-permission android:name="android.permission.BIND_QUICK_SETTINGS_TILE" />
 
     <application>
+        <activity
+            android:name="kittoku.osc.activity.BlankActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.DayNight" />
+
         <service
             android:name="kittoku.osc.service.SstpVpnService"
             android:exported="false"
