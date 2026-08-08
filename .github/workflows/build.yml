@@ -233,6 +233,33 @@ jobs:
           print("Added mbedtls error code logging for dhm_make_public.")
           PYEOF2
 
+      - name: PATCH ikev1.c - fix mbedtls_dhm_make_public olen parameter (MBEDTLS_ERR_DHM_BAD_INPUT_DATA)
+        run: |
+          # Подтверждено по реальному логу: mbedtls_rc=-0x3080 =
+          # MBEDTLS_ERR_DHM_BAD_INPUT_DATA. Причина — olen (4-й параметр)
+          # должен быть <= ctx->len, а мы передавали sizeof(pubkey) (256,
+          # под MODP2048) вместо реальной длины текущей группы (128 для
+          # MODP1024). См. mbedtls/library/dhm.c: "if (olen < 1 || olen >
+          # ctx->len) return MBEDTLS_ERR_DHM_BAD_INPUT_DATA".
+          echo "ICAgIGludCBtYWtlX3B1Yl9yYyA9IG1iZWR0bHNfZGhtX21ha2VfcHVibGljKCZkaG0sIChpbnQpZGhtLmxlbiwgcHVia2V5LCBzaXplb2YocHVia2V5KSwgbWJlZHRsc19jdHJfZHJiZ19yYW5kb20sICZjdHIpOw==" | base64 -d > /tmp/olen_orig.txt
+          echo "ICAgIC8vIG1iZWR0bHNfZGhtX21ha2VfcHVibGljKCkg0YLRgNC10LHRg9C10YIgb2xlbiA8PSBjdHgtPmxlbiAo0LjQvdCw0YfQtQogICAgLy8gTUJFRFRMU19FUlJfREhNX0JBRF9JTlBVVF9EQVRBLCDQutC+0LQgLTB4MzA4MCkg4oCUIHNpemVvZihwdWJrZXkpINGN0YLQvgogICAgLy8g0YDQsNC30LzQtdGAINCx0YPRhNC10YDQsCDQn9Ce0JQgTU9EUDIwNDggKDI1NiDQsdCw0LnRgiksINCwINC00LvRjyBNT0RQMTAyNCBkaG0ubGVuPT0xMjgsCiAgICAvLyAyNTYgPiAxMjgg0LLRgdC10LPQtNCwINC/0YDQvtCy0LDQu9C40LLQsNC70L4g0L/RgNC+0LLQtdGA0LrRgy4g0J/QtdGA0LXQtNCw0ZHQvCDRgNC10LDQu9GM0L3Ri9C5IGRobS5sZW4uCiAgICBpbnQgbWFrZV9wdWJfcmMgPSBtYmVkdGxzX2RobV9tYWtlX3B1YmxpYygmZGhtLCAoaW50KWRobS5sZW4sIHB1YmtleSwgZGhtLmxlbiwgbWJlZHRsc19jdHJfZHJiZ19yYW5kb20sICZjdHIpOw==" | base64 -d > /tmp/olen_patched.txt
+          python3 - << 'PYEOF2'
+          path = "l2tp/src/main/cpp/ikev1.c"
+          with open(path, "r") as f:
+              content = f.read()
+          with open("/tmp/olen_orig.txt") as f:
+              original = f.read()
+          with open("/tmp/olen_patched.txt") as f:
+              patched = f.read()
+          count = content.count(original)
+          if count != 1:
+              raise SystemExit(f"PATCH FAILED: expected 1 occurrence, found {count}")
+          content = content.replace(original, patched)
+          with open(path, "w") as f:
+              f.write(content)
+          print("Fixed mbedtls_dhm_make_public olen parameter.")
+          PYEOF2
+
       - name: Install autotools/build toolchain (needed for strongSwan native build)
         run: |
           sudo apt-get update

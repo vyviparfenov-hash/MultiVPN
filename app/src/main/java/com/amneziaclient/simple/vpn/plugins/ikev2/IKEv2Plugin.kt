@@ -250,6 +250,11 @@ class IKEv2Plugin @Inject constructor(
                 }
             }.getOrNull()
 
+            android.util.Log.d("IKEv2Plugin", "measureConnectionExtrasOnce: server=$host pingMs=$pingMs publicIp=$publicIp")
+            com.amneziaclient.simple.vpn.VpnDebugLog.log(
+                "IKEv2Plugin", "measureConnectionExtrasOnce: server=$host pingMs=$pingMs publicIp=$publicIp"
+            )
+
             _stats.value = _stats.value.copy(pingMillis = pingMs, publicIp = publicIp)
         }
     }
