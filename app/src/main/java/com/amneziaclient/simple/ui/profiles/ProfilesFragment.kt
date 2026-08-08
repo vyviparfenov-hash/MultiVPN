@@ -8,6 +8,8 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -606,7 +608,7 @@ class ProfilesFragment : Fragment() {
             "username" to "Имя пользователя",
             "password" to "Пароль",
             "cert" to "Сертификат сервера (.pem/.crt/.der как текст, необязательно — для самоподписанных серверов)",
-            "insecure" to "Не проверять совпадение имени хоста (yes/no, необязательно)"
+            "insecure" to "Не проверять совпадение имени хоста (можете оставить поле пустым)"
         )
         else -> listOf("name" to "Название профиля")
     }
@@ -627,18 +629,40 @@ class ProfilesFragment : Fragment() {
             setPadding(padding, padding / 2, padding, padding / 2)
         }
         fieldKeys.forEach { (key, label) ->
-            val editText = EditText(requireContext()).apply {
-                hint = label
-                gravity = Gravity.START
-                if (key == "cert" || key == "ovpnContent") {
-                    // Многострочное поле — сюда вставляется целиком текст
-                    // .pem-сертификата (IKEv2) или .ovpn-конфига (OpenVPN).
-                    minLines = 3
-                    maxLines = 8
-                    inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                        android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            // "insecure" (SSTP): не текстовое поле, а выпадающий список yes/no —
+            // раньше нужно было вручную печатать "yes"/"no", что было неудобно и
+            // давало опечатки. AutoCompleteTextView — тоже EditText, поэтому карта
+            // editTexts и логика сохранения ниже не меняются. По умолчанию поле
+            // пустое (ничего не выбрано) — downstream-парсинг (SstpPlugin.kt) уже
+            // трактует пустую/любую не-"yes" строку как false ("no"), так что
+            // пустое поле = "no" без дополнительной логики здесь.
+            val editText: EditText = if (key == "insecure") {
+                AutoCompleteTextView(requireContext()).apply {
+                    hint = label
+                    gravity = Gravity.START
+                    inputType = android.text.InputType.TYPE_NULL
+                    keyListener = null
+                    setAdapter(
+                        ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, listOf("yes", "no"))
+                    )
+                    threshold = 0
+                    setOnClickListener { showDropDown() }
+                    initialFields[key]?.let { setText(it) }
                 }
-                initialFields[key]?.let { setText(it) }
+            } else {
+                EditText(requireContext()).apply {
+                    hint = label
+                    gravity = Gravity.START
+                    if (key == "cert" || key == "ovpnContent") {
+                        // Многострочное поле — сюда вставляется целиком текст
+                        // .pem-сертификата (IKEv2) или .ovpn-конфига (OpenVPN).
+                        minLines = 3
+                        maxLines = 8
+                        inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                            android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                    }
+                    initialFields[key]?.let { setText(it) }
+                }
             }
             editTexts[key] = editText
             container.addView(editText)
