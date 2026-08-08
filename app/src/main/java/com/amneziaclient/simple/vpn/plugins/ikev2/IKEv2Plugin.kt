@@ -40,7 +40,6 @@ import org.strongswan.android.logic.TrustedCertificateManager
 import org.strongswan.android.logic.VpnStateService
 import org.strongswan.android.ui.VpnProfileControlActivity
 import java.net.InetAddress
-import java.net.URL
 import java.security.KeyStore
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
@@ -246,39 +245,29 @@ class IKEv2Plugin @Inject constructor(
 
             logActiveNetworkInfo("before publicIp fetch")
 
-            val publicIp = runCatching {
-                withContext(Dispatchers.IO) {
-                    // PATCH: раньше запрос уходил через "активную по умолчанию" сеть процесса
-                    // (URL.openStream() без привязки), а она у нас, как и показывает
-                    // logActiveNetworkInfo() чуть выше, — НЕ VPN-сеть (hasVpnTransport=false,
-                    // iface=wlan0), даже когда VPN-туннель реально поднят и работает (это
-                    // подтверждают сторонние сервисы вроде 2ip.ru — они видят IP VPS, т.к. их
-                    // трафик у других приложений идёт через системную таблицу маршрутизации, а
-                    // не через "активную сеть" именно этого процесса). Поэтому явно ищем среди
-                    // всех сетей ту, что имеет TRANSPORT_VPN, и открываем соединение через неё.
-                    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-                    val vpnNetwork = cm.allNetworks.firstOrNull { net ->
-                        cm.getNetworkCapabilities(net)
-                            ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
-                    }
-                    val url = URL("https://api.ipify.org")
-                    val connection = vpnNetwork?.openConnection(url) ?: url.openConnection()
-                    connection.getInputStream().bufferedReader().use { it.readText().trim() }
-                }
-            }.onFailure { e ->
-                // DIAGNOSTIC: после привязки к VPN-сети publicIp стал null вместо
-                // домашнего IP — значит сам запрос теперь падает с исключением, а не
-                // просто уходит не туда. runCatching{}.getOrNull() ниже это исключение
-                // раньше молча проглатывал — здесь логируем его явно (тип + сообщение +
-                // стектрейс), чтобы по следующему логу увидеть точную причину, а не
-                // гадать (SecurityException при попытке использовать чужую сеть из этого
-                // процесса? UnknownHostException — DNS не резолвится через tun1? Таймаут?
-                // ENETUNREACH — маршрут к 8.8.8.8/DNS-серверу отсутствует внутри тоннеля?).
-                val msg = "measureConnectionExtrasOnce: publicIp fetch FAILED: " +
-                    "${e::class.java.name}: ${e.message}"
-                android.util.Log.w("IKEv2Plugin", msg, e)
-                com.amneziaclient.simple.vpn.VpnDebugLog.log("IKEv2Plugin", msg)
-            }.getOrNull()
+            // PATCH: раньше здесь была попытка явно привязать запрос к VPN-сети
+            // (Network.openConnection()) — но для IKEv2 она гарантированно и
+            // всегда падает с "SocketException: ... EPERM (Operation not
+            // permitted)". Причина не временная и не наша: strongSwan сам,
+            // безусловно, исключает своё же приложение из собственного туннеля
+            // (см. CharonVpnService.java апстрима, комментарий "exclude our own
+            // app, otherwise the fetcher is blocked" — это нужно, чтобы их
+            // CRL/OCSP-fetcher при проверке сертификата сервера мог сходить в
+            // сеть МИМО ещё не поднятого туннеля). А раз наш процесс исключён —
+            // Android на уровне netd/ядра запрещает ЛЮБУЮ привязку сокета к этой
+            // VPN-сети из этого UID, в том числе явную через Network.bindSocket()
+            // /openConnection(). Это не обходится кодом уровня приложения.
+            // Поэтому для IKEv2 сразу отдаём null: HomeFragment.kt показывает его
+            // как "—" (не путать с "0.0.0.0" или ошибкой) — честно, без попытки,
+            // которая 100% упадёт, и без пугающего стектрейса в логе на каждое
+            // подключение.
+            val publicIp: String? = null
+            com.amneziaclient.simple.vpn.VpnDebugLog.log(
+                "IKEv2Plugin",
+                "measureConnectionExtrasOnce: publicIp check skipped for IKEv2 — app is excluded " +
+                    "from its own tunnel by strongSwan (cert fetcher), binding to it always fails " +
+                    "with EPERM; showing \"—\" instead"
+            )
 
             android.util.Log.d("IKEv2Plugin", "measureConnectionExtrasOnce: server=$host pingMs=$pingMs publicIp=$publicIp")
             com.amneziaclient.simple.vpn.VpnDebugLog.log(

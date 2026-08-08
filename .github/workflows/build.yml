@@ -59,6 +59,46 @@ jobs:
           echo "===== Vendored res dirs ====="
           find sstp/src/main/res -maxdepth 1 -type d
 
+      - name: PATCH kittoku Controller.kt - surface SSTP error details to logcat
+        run: |
+          # У kittoku (Open-SSTP-Client) собственный текстовый лог-файл (LogWriter),
+          # но он пишется только если явно включена LOG_DO_SAVE_LOG + выбрана папка
+          # LOG_DIR через SAF-пикер (SstpBridge.kt в нашем :app это никогда не
+          # включает). По умолчанию — оба выключены, а сам протокольный движок при
+          # ошибке (TLS handshake, PPP, отказ SSTP control-канала) кладёт точную
+          # причину ИСКЛЮЧИТЕЛЬНО в этот отключённый файл + заголовок во всплывающее
+          # Android-уведомление (не сохраняется нигде). Итог — по logcat/снятым логам
+          # физически невозможно понять, ПОЧЕМУ конкретно упало соединение SSTP.
+          # Дублируем оба места в обычный logcat (android.util.Log) — без зависимости
+          # от VpnDebugLog из :app, т.к. :sstp — изолированный модуль без зависимости
+          # на :app (обратная зависимость создала бы цикл).
+          echo "ICAgIHByaXZhdGUgZnVuIGF0dGFjaEhhbmRsZXIoKSB7CiAgICAgICAgYnJpZGdlLmhhbmRsZXIgPSBDb3JvdXRpbmVFeGNlcHRpb25IYW5kbGVyIHsgXywgdGhyb3dhYmxlIC0+CiAgICAgICAgICAgIGtpbGwoaXNSZWNvbm5lY3Rpb25FbmFibGVkKSB7CiAgICAgICAgICAgICAgICB2YWwgaGVhZGVyID0gIk9TQzogRVJSX1VORVhQRUNURUQiCiAgICAgICAgICAgICAgICBicmlkZ2Uuc2VydmljZS5sb2dXcml0ZXI/LnJlcG9ydChoZWFkZXIgKyAiXG4iICsgdGhyb3dhYmxlLnN0YWNrVHJhY2VUb1N0cmluZygpKQogICAgICAgICAgICAgICAgYnJpZGdlLnNlcnZpY2Uubm90aWZ5RXJyb3IoaGVhZGVyKQogICAgICAgICAgICB9CiAgICAgICAgfQogICAgfQ==" | base64 -d > /tmp/unexpectederr_orig.txt
+          echo "ICAgIHByaXZhdGUgZnVuIGF0dGFjaEhhbmRsZXIoKSB7CiAgICAgICAgYnJpZGdlLmhhbmRsZXIgPSBDb3JvdXRpbmVFeGNlcHRpb25IYW5kbGVyIHsgXywgdGhyb3dhYmxlIC0+CiAgICAgICAgICAgIGtpbGwoaXNSZWNvbm5lY3Rpb25FbmFibGVkKSB7CiAgICAgICAgICAgICAgICB2YWwgaGVhZGVyID0gIk9TQzogRVJSX1VORVhQRUNURUQiCiAgICAgICAgICAgICAgICBicmlkZ2Uuc2VydmljZS5sb2dXcml0ZXI/LnJlcG9ydChoZWFkZXIgKyAiXG4iICsgdGhyb3dhYmxlLnN0YWNrVHJhY2VUb1N0cmluZygpKQogICAgICAgICAgICAgICAgLy8gUEFUQ0ggKNC90LUg0LIg0LDQv9GB0YLRgNC40LzQtSk6IGxvZ1dyaXRlciDQv9C40YjQtdGCINCyINGE0LDQudC7INCi0J7Qm9Cs0JrQniDQtdGB0LvQuCDRj9Cy0L3QviDQstC60LvRjtGH0LXQvdCwCiAgICAgICAgICAgICAgICAvLyDQvtC/0YbQuNGPIExPR19ET19TQVZFX0xPRyArINCy0YvQsdGA0LDQvdCwINC/0LDQv9C60LAgTE9HX0RJUiAo0YfQtdGA0LXQtyBTQUYt0L/QuNC60LXRgCkg4oCUINC/0L4KICAgICAgICAgICAgICAgIC8vINGD0LzQvtC70YfQsNC90LjRjiDQvtCx0LAg0LLRi9C60LvRjtGH0LXQvdGLL9C90LUg0LfQsNC00LDQvdGLLCDQuCDQstC10YHRjCDRjdGC0L7RgiDRgtC10LrRgdGCICjQstC60LvRjtGH0LDRjyDQv9C+0LvQvdGL0LkKICAgICAgICAgICAgICAgIC8vINGB0YLQtdC60YLRgNC10LnRgSkg0L/RgNC+0YHRgtC+INGC0LXRgNGP0LvRgdGPOiBub3RpZnlFcnJvcigpINC90LjQttC1INC/0L7QutCw0LfRi9Cy0LDQtdGCINGC0L7Qu9GM0LrQviDQt9Cw0LPQvtC70L7QstC+0LoKICAgICAgICAgICAgICAgIC8vINCy0L4g0LLRgdC/0LvRi9Cy0LDRjtGJ0LXQvCDRg9Cy0LXQtNC+0LzQu9C10L3QuNC4LCDQvdC40LPQtNC1INC90LUg0YHQvtGF0YDQsNC90Y/QtdGC0YHRjy4g0JTRg9Cx0LvQuNGA0YPQtdC8INCyIGxvZ2NhdCDigJQKICAgICAgICAgICAgICAgIC8vINCx0LXQtyDRgdGC0L7RgNC+0L3QvdC10Lkg0LfQsNCy0LjRgdC40LzQvtGB0YLQuCDQvdCwIFZwbkRlYnVnTG9nINC40LcgOmFwcCAo0YMgOnNzdHAg0LXQs9C+INC90LXRgiDQuCDQvdC1CiAgICAgICAgICAgICAgICAvLyDQtNC+0LvQttC90L4g0LHRi9GC0YwsINGH0YLQvtCx0Ysg0L3QtSDRgdC+0LfQtNCw0LLQsNGC0Ywg0L7QsdGA0LDRgtC90YPRjiDQt9Cw0LLQuNGB0LjQvNC+0YHRgtGMINC80L7QtNGD0LvQtdC5KS4KICAgICAgICAgICAgICAgIGFuZHJvaWQudXRpbC5Mb2cuZSgiU3N0cENvbnRyb2xsZXIiLCBoZWFkZXIgKyAiXG4iICsgdGhyb3dhYmxlLnN0YWNrVHJhY2VUb1N0cmluZygpKQogICAgICAgICAgICAgICAgYnJpZGdlLnNlcnZpY2Uubm90aWZ5RXJyb3IoaGVhZGVyKQogICAgICAgICAgICB9CiAgICAgICAgfQogICAgfQ==" | base64 -d > /tmp/unexpectederr_patched.txt
+          echo "ICAgICAgICBraWxsKGlzUmVjb25uZWN0aW9uRW5hYmxlZCkgewogICAgICAgICAgICBzc3RwQ2xpZW50Py5zZW5kTGFzdFBhY2tldChsYXN0UGFja2V0VHlwZSkKCiAgICAgICAgICAgIHZhbCBoZWFkZXIgPSAiJHtyZWNlaXZlZC5mcm9tLm5hbWV9OiAke3JlY2VpdmVkLnJlc3VsdC5uYW1lfSIKICAgICAgICAgICAgdmFyIGxvZyA9IGhlYWRlcgogICAgICAgICAgICBpZiAocmVjZWl2ZWQuc3VwcGxlbWVudCAhPSBudWxsKSB7CiAgICAgICAgICAgICAgICBsb2cgKz0gIlxuJHtyZWNlaXZlZC5zdXBwbGVtZW50fSIKICAgICAgICAgICAgfQoKICAgICAgICAgICAgYnJpZGdlLnNlcnZpY2UubG9nV3JpdGVyPy5yZXBvcnQobG9nKQogICAgICAgICAgICBicmlkZ2Uuc2VydmljZS5ub3RpZnlFcnJvcihoZWFkZXIpCiAgICAgICAgfQ==" | base64 -d > /tmp/expectproceeded_orig.txt
+          echo "ICAgICAgICBraWxsKGlzUmVjb25uZWN0aW9uRW5hYmxlZCkgewogICAgICAgICAgICBzc3RwQ2xpZW50Py5zZW5kTGFzdFBhY2tldChsYXN0UGFja2V0VHlwZSkKCiAgICAgICAgICAgIHZhbCBoZWFkZXIgPSAiJHtyZWNlaXZlZC5mcm9tLm5hbWV9OiAke3JlY2VpdmVkLnJlc3VsdC5uYW1lfSIKICAgICAgICAgICAgdmFyIGxvZyA9IGhlYWRlcgogICAgICAgICAgICBpZiAocmVjZWl2ZWQuc3VwcGxlbWVudCAhPSBudWxsKSB7CiAgICAgICAgICAgICAgICBsb2cgKz0gIlxuJHtyZWNlaXZlZC5zdXBwbGVtZW50fSIKICAgICAgICAgICAgfQoKICAgICAgICAgICAgYnJpZGdlLnNlcnZpY2UubG9nV3JpdGVyPy5yZXBvcnQobG9nKQogICAgICAgICAgICAvLyBQQVRDSCAo0L3QtSDQsiDQsNC/0YHRgtGA0LjQvNC1KTog0Y3RgtC+INGB0LDQvNC+0LUg0LLQsNC20L3QvtC1INC80LXRgdGC0L4g4oCUINC30LTQtdGB0Ywg0YTQvtGA0LzQuNGA0YPQtdGC0YHRjyDRgtC+0YfQvdCw0Y8KICAgICAgICAgICAgLy8g0L/RgNC40YfQuNC90LAg0L7QsdGA0YvQstCwIChXaGVyZSArIFJlc3VsdCArIHN1cHBsZW1lbnQsINC90LDQv9GA0LjQvNC10YAg0LrQvtC90LrRgNC10YLQvdCw0Y8g0L7RiNC40LHQutCwIFRMUwogICAgICAgICAgICAvLyDRgNGD0LrQvtC/0L7QttCw0YLQuNGPINC40LvQuCDQutC+0LQg0L7RgtC60LDQt9CwIFNTVFAgY29udHJvbC3QutCw0L3QsNC70LApLCDQsCDRgNCw0L3RjNGI0LUg0YPRhdC+0LTQuNC70LAg0KLQntCb0KzQmtCeINCyCiAgICAgICAgICAgIC8vINC+0YLQutC70Y7Rh9GR0L3QvdGL0Lkg0L/QviDRg9C80L7Qu9GH0LDQvdC40Y4gbG9nV3JpdGVyLiDQlNGD0LHQu9C40YDRg9C10Lwg0LLQtdGB0Ywg0YLQtdC60YHRgiAoaGVhZGVyK3N1cHBsZW1lbnQpCiAgICAgICAgICAgIC8vINCyIGxvZ2NhdCwg0YfRgtC+0LHRiyDQvtC9INC/0L7Qv9Cw0LTQsNC7INCyINGB0L3Rj9GC0YvQtSDQu9C+0LPQuCDQsdC10Lcg0LLQutC70Y7Rh9C10L3QuNGPIGZpbGUt0LvQvtCz0LjRgNC+0LLQsNC90LjRjy4KICAgICAgICAgICAgYW5kcm9pZC51dGlsLkxvZy53KCJTc3RwQ29udHJvbGxlciIsIGxvZykKICAgICAgICAgICAgYnJpZGdlLnNlcnZpY2Uubm90aWZ5RXJyb3IoaGVhZGVyKQogICAgICAgIH0=" | base64 -d > /tmp/expectproceeded_patched.txt
+          python3 - << 'PYEOF2'
+          path = "sstp/src/main/java/kittoku/osc/control/Controller.kt"
+          with open(path, "r") as f:
+              content = f.read()
+
+          def apply(content, orig_path, patched_path, label):
+              with open(orig_path) as f:
+                  original = f.read()
+              with open(patched_path) as f:
+                  patched = f.read()
+              count = content.count(original)
+              if count != 1:
+                  raise SystemExit(f"PATCH FAILED [{label}]: expected 1 occurrence, found {count}")
+              return content.replace(original, patched)
+
+          content = apply(content, "/tmp/unexpectederr_orig.txt", "/tmp/unexpectederr_patched.txt", "unexpected_error_log")
+          content = apply(content, "/tmp/expectproceeded_orig.txt", "/tmp/expectproceeded_patched.txt", "expect_proceeded_error_log")
+
+          with open(path, "w") as f:
+              f.write(content)
+          print("Added logcat output for SSTP error details (2 sites).")
+          PYEOF2
+
       - name: Download XTLS/libXray AAR (VLESS/Xray engine, official wrapper, prebuilt — no Go/gomobile needed)
         run: |
           mkdir -p app/libs
