@@ -11,10 +11,10 @@ Android-клиент с единым интерфейсом сразу для н
 | AmneziaWG | com.zaneschepke:amneziawg-android | Работает |
 | WireGuard | тот же движок, что и AmneziaWG | Работает |
 | IKEv2/IPsec | strongSwan | Работает |
-| L2TP/IPsec | TunnelForge | Работает |
+| L2TP/IPsec | TunnelForge | В процессе |
 | OpenVPN | openvpn3 (ядро от OpenVPN Inc.) | Работает |
 | VLESS | Xray-core (через XTLS/libXray) | Работает, включая сплит-туннель |
-| SSTP | kittoku/Open-SSTP-Client | Работает |
+| SSTP | kittoku/Open-SSTP-Client | В процессе |
 | SoftEther | — | Пока не реализован |
 
 ## Возможности
