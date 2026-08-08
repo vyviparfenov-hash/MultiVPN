@@ -248,7 +248,22 @@ class IKEv2Plugin @Inject constructor(
 
             val publicIp = runCatching {
                 withContext(Dispatchers.IO) {
-                    URL("https://api.ipify.org").openStream().bufferedReader().use { it.readText().trim() }
+                    // PATCH: раньше запрос уходил через "активную по умолчанию" сеть процесса
+                    // (URL.openStream() без привязки), а она у нас, как и показывает
+                    // logActiveNetworkInfo() чуть выше, — НЕ VPN-сеть (hasVpnTransport=false,
+                    // iface=wlan0), даже когда VPN-туннель реально поднят и работает (это
+                    // подтверждают сторонние сервисы вроде 2ip.ru — они видят IP VPS, т.к. их
+                    // трафик у других приложений идёт через системную таблицу маршрутизации, а
+                    // не через "активную сеть" именно этого процесса). Поэтому явно ищем среди
+                    // всех сетей ту, что имеет TRANSPORT_VPN, и открываем соединение через неё.
+                    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                    val vpnNetwork = cm.allNetworks.firstOrNull { net ->
+                        cm.getNetworkCapabilities(net)
+                            ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+                    }
+                    val url = URL("https://api.ipify.org")
+                    val connection = vpnNetwork?.openConnection(url) ?: url.openConnection()
+                    connection.getInputStream().bufferedReader().use { it.readText().trim() }
                 }
             }.getOrNull()
 

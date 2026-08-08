@@ -322,6 +322,33 @@ jobs:
           print("Fixed pubkey_len usage in Phase1 IV / HASH_I / HASH_R (6 sites).")
           PYEOF2
 
+      - name: PATCH ikev1.c - reduce fixed 16s post-QM3 wait (source of slow connect)
+        run: |
+          # Из реального verbose-лога подключения: 16.0 из 16.4 секунд всего времени
+          # подключения уходит на ike_qm3_finish_recv_loop(), который безусловно
+          # ждёт total_ms=16000 IKE Informational-сообщения, которое сервер обычно
+          # вообще не присылает ("peer often silent; ok" — сообщение в самом коде).
+          # IKE+QM в этот момент уже фактически завершён; цикл нужен только чтобы
+          # успеть повторно отправить QM3/HASH(3) ack при ретрансмите QM2 от сервера.
+          echo "ICBjb25zdCBpbnQgdG90YWxfbXMgPSAxNjAwMDsKICBjb25zdCBpbnQgc2xpY2VfbXMgPSA0MDA7" | base64 -d > /tmp/qm3wait_orig.txt
+          echo "ICAvKiBQQVRDSDog0LHRi9C70L4gMTYwMDAg4oCUINC/0YDQuCAi0YLQuNGF0L7QvCIg0YHQtdGA0LLQtdGA0LUgKNC90LUg0YjQu9GR0YIgSW5mb3JtYXRpb25hbCDQv9C+0YHQu9C1IFFNMywKICAgKiDRgdC8LiDQu9C+0LMgInBlZXIgb2Z0ZW4gc2lsZW50OyBvayIpINGN0YLQviDQsdGL0LvQviDQp9CY0KHQotCe0JUg0L7QttC40LTQsNC90LjQtSDQsiDQvdC40LrRg9C00LA6CiAgICogSUtFK1FNINGD0LbQtSDRgdGH0LjRgtCw0LXRgtGB0Y8g0YPRgdC/0LXRiNC90YvQvCDQv9C+INC70Y7QsdC+0LzRgyDQstGL0YXQvtC00YMg0LjQtyDRjdGC0L7Qs9C+INGG0LjQutC70LAsINC60YDQvtC80LUKICAgKiDRgNC10LDQu9GM0L3QvtC5INC+0YjQuNCx0LrQuCBwb2xsL3JlY3Yg0LjQu9C4INC+0YLQvNC10L3Riy4g0KbQuNC60Lsg0L3Rg9C20LXQvSDRgtC+0LvRjNC60L4g0LTQu9GPINGC0L7Qs9C+LCDRh9GC0L7QsdGLCiAgICog0YPRgdC/0LXRgtGMINC/0L7QstGC0L7RgNC90L4g0L7RgtC/0YDQsNCy0LjRgtGMINC90LDRiCBRTTMvSEFTSCgzKSBhY2ssINC10YHQu9C4INGB0LXRgNCy0LXRgCDQvdC1INC/0L7Qu9GD0YfQuNC7CiAgICog0L/QtdGA0LLRi9C5INC4INC/0L7QstGC0L7RgNC90L4g0YjQu9GR0YIgUU0yIOKAlCAyMDAwINC80YEgKDUg0YHRgNC10LfQvtCyINC/0L4gc2xpY2VfbXMpINC00L7RgdGC0LDRgtC+0YfQvdC+CiAgICog0LTQu9GPINC+0LTQvdC+0LPQviDRhtC40LrQu9CwINGA0LXRgtGA0LDQvdGB0LzQuNGC0LAg0L3QsCDQvtCx0YvRh9C90L7QuSDRgdC10YLQuCwg0Lgg0Y3RgtC+INC90LUg0LLQu9C40Y/QtdGCINC90LAKICAgKiDQutC+0YDRgNC10LrRgtC90L7RgdGC0Yw6INC+0YHRgtCw0YLQvtC6INC+0LrQvdCwINC70LjRiNGMINGH0YPRgtGMINGB0L3QuNC20LDQtdGCINGI0LDQvdGBINC/0L7QudC80LDRgtGMINC/0L7QstGC0L7RgNC90YvQuQogICAqIFFNMiDQv9GA0Lgg0L7Rh9C10L3RjCDQvNC10LTQu9C10L3QvdC+0Lkv0LvQvtGB0YHQuCDRgdC10YLQuC4gKi8KICBjb25zdCBpbnQgdG90YWxfbXMgPSAyMDAwOwogIGNvbnN0IGludCBzbGljZV9tcyA9IDQwMDs=" | base64 -d > /tmp/qm3wait_patched.txt
+          python3 - << 'PYEOF2'
+          path = "l2tp/src/main/cpp/ikev1.c"
+          with open(path, "r") as f:
+              content = f.read()
+          with open("/tmp/qm3wait_orig.txt") as f:
+              original = f.read()
+          with open("/tmp/qm3wait_patched.txt") as f:
+              patched = f.read()
+          count = content.count(original)
+          if count != 1:
+              raise SystemExit(f"PATCH FAILED: expected 1 occurrence, found {count}")
+          content = content.replace(original, patched)
+          with open(path, "w") as f:
+              f.write(content)
+          print("Reduced post-QM3 wait from 16000ms to 2000ms.")
+          PYEOF2
+
       - name: Install autotools/build toolchain (needed for strongSwan native build)
         run: |
           sudo apt-get update
