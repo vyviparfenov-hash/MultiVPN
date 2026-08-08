@@ -1,0 +1,27 @@
+# Android / Gradle
+*.iml
+.gradle/
+build/
+local.properties
+.idea/
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+
+# Вендоренные исходники сторонних движков — клонируются заново на каждом
+# прогоне CI (см. .github/workflows/build.yml), в git не коммитятся.
+l2tp/src/main/cpp/
+openvpn/src/main/cpp/
+sstp/src/main/java/kittoku/
+sstp/src/main/res/
+
+# Скачиваемый готовый .aar (см. build.yml, шаг "Download XTLS/libXray AAR")
+app/libs/LibXray.aar
+
+# Ключи подписи — никогда не коммитить
+*.jks
+*.keystore
+keystore.properties

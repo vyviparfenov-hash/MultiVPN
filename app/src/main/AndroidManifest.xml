@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <application
+        android:name=".AmneziaApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="@string/multivpn_app_name"
+        android:theme="@style/Theme.AmneziaSimple"
+        tools:replace="android:name,android:icon,android:roundIcon,android:label,android:theme">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".service.AmneziaVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:exported="false"
+            android:foregroundServiceType="dataSync">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".vpn.plugins.l2tp.L2tpVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:exported="false"
+            android:foregroundServiceType="dataSync">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".vpn.plugins.openvpn.OpenVpnVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:exported="false"
+            android:foregroundServiceType="dataSync">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".vpn.plugins.vless.VlessVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:exported="false"
+            android:process=":vless"
+            android:foregroundServiceType="dataSync">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+        <!-- VpnProfileControlActivity принадлежит библиотеке strongSwan
+             (:strongswan) — это служебный "контроллер" подключения IKEv2, а
+             не полноценный экран. Запускается с FLAG_ACTIVITY_NEW_TASK
+             (обязателен при старте Activity не из контекста другой Activity),
+             из-за чего по умолчанию создавалась ВТОРАЯ видимая задача в
+             диспетчере приложений ("2 запущенных MultiVPN"). Явно указываем
+             taskAffinity нашего приложения и убираем из списка недавних.
+
+             ВАЖНО: android:noHistory здесь НЕ используем (убрали) — с ним
+             система уничтожала эту Activity в тот момент, когда поверх нее
+             должен был появиться системный диалог "Разрешить VPN-соединение"
+             (она теряла фокус => noHistory сразу её убивал), из-за чего
+             диалог не показывался и подключение обрывалось на середине. -->
+        <activity
+            android:name="org.strongswan.android.ui.VpnProfileControlActivity"
+            android:excludeFromRecents="true"
+            android:taskAffinity="${applicationId}"
+            tools:replace="android:excludeFromRecents,android:taskAffinity" />
+
+        <activity
+            android:name=".ui.qrscan.QrScanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+    </application>
+</manifest>

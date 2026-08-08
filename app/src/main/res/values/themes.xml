@@ -1,0 +1,61 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Всегда тёмная тема (не DayNight) — таким и задуман дизайн по макету -->
+    <style name="Theme.AmneziaSimple" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/accent_start</item>
+        <item name="colorSecondary">@color/accent_end</item>
+        <item name="colorSurface">@color/bg_surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="android:colorBackground">@color/bg_root</item>
+        <item name="colorOnBackground">@color/text_primary</item>
+        <item name="android:statusBarColor" tools:targetApi="l">@color/bg_root</item>
+        <item name="android:navigationBarColor" tools:targetApi="l">@color/bg_root</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="materialAlertDialogTheme">@style/AppAlertDialog</item>
+        <item name="bottomSheetDialogTheme">@style/AppBottomSheetDialog</item>
+    </style>
+
+    <!-- Единый стиль для ВСЕХ MaterialAlertDialogBuilder-диалогов в
+         приложении (форма ввода, выбор протокола, переименование и т.д.) —
+         подхватывается автоматически, каждый диалог по отдельности не
+         нужно настраивать. -->
+    <style name="AppAlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorSurface">@color/bg_surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorPrimary">@color/accent_start</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/AppAlertDialog.Title</item>
+        <item name="shapeAppearanceOverlay">@style/AppAlertDialog.Shape</item>
+        <item name="buttonBarPositiveButtonStyle">@style/AppAlertDialog.Button</item>
+        <item name="buttonBarNegativeButtonStyle">@style/AppAlertDialog.Button</item>
+    </style>
+
+    <style name="AppAlertDialog.Title" parent="MaterialAlertDialog.Material3.Title.Text">
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <style name="AppAlertDialog.Shape" parent="">
+        <item name="cornerSize">20dp</item>
+    </style>
+
+    <style name="AppAlertDialog.Button" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/accent_start</item>
+    </style>
+
+    <!-- Bottom sheet (выезжает снизу) — под тот же стиль карточек. -->
+    <style name="AppBottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/AppBottomSheetDialog.Sheet</item>
+    </style>
+
+    <style name="AppBottomSheetDialog.Sheet" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">@color/bg_surface</item>
+        <item name="shapeAppearanceOverlay">@style/AppBottomSheetDialog.Shape</item>
+    </style>
+
+    <style name="AppBottomSheetDialog.Shape" parent="">
+        <item name="cornerSizeTopLeft">24dp</item>
+        <item name="cornerSizeTopRight">24dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+</resources>

@@ -1,0 +1,8 @@
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <gradient
+        android:type="sweep"
+        android:startColor="@color/accent_start"
+        android:centerColor="@color/accent_end"
+        android:endColor="@color/accent_start" />
+</shape>

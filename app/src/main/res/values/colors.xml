@@ -1,0 +1,31 @@
+<resources>
+    <!-- Тёмная фиолетово-синяя палитра, как в присланном макете -->
+    <color name="bg_root">#0D0B17</color>
+    <color name="bg_surface">#1C1830</color>
+    <color name="bg_surface_variant">#262040</color>
+
+    <color name="accent_start">#7B5CFA</color>
+    <color name="accent_end">#4F7DFA</color>
+
+    <color name="text_primary">#F5F3FF</color>
+    <color name="text_secondary">#9B96B8</color>
+
+    <color name="status_ok">#4ADE80</color>
+    <color name="status_warning">#F59E0B</color>
+    <color name="status_error">#F87171</color>
+
+    <color name="button_start_green">#4ADE80</color>
+    <color name="button_stop_red">#F87171</color>
+
+    <color name="divider">#332B52</color>
+
+    <!-- Цвета-акценты протоколов (карточки профилей) -->
+    <color name="protocol_amneziawg">#4ADE80</color>
+    <color name="protocol_wireguard">#3B82F6</color>
+    <color name="protocol_openvpn">#F97316</color>
+    <color name="protocol_ikev2">#7B5CFA</color>
+    <color name="protocol_l2tp">#14B8A6</color>
+    <color name="protocol_sstp">#06B6D4</color>
+    <color name="protocol_softether">#EC4899</color>
+    <color name="protocol_vless">#F97316</color>
+</resources>

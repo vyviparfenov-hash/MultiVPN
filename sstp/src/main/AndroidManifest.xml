@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     ВАЖНО: этот файл — НАШ СОБСТВЕННЫЙ, урезанный вручную, НЕ из апстрима
+     kittoku/Open-SSTP-Client и НЕ перезаписывается вендорингом в CI (в
+     отличие от sstp/src/main/java/kittoku и sstp/src/main/res). Оригинал
+     дополнительно объявлял свои MainActivity/BlankActivity (с
+     launcher-intent-filter — создало бы у нас второй значок запуска в
+     системе) — их мы сознательно не регистрируем. SstpTileService (плитка
+     быстрых настроек) регистрируем, хоть сами и не даём на неё выйти из
+     своего UI — их же внутренний код всё равно постоянно пытается
+     обновить её состояние (TileService.requestListeningState) независимо
+     от того, используется ли плитка реально, и без регистрации это просто
+     засоряло logcat ошибками "Couldn't find tile" при каждом изменении
+     состояния подключения.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.BIND_QUICK_SETTINGS_TILE" />
+
+    <application>
+        <service
+            android:name="kittoku.osc.service.SstpVpnService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name="kittoku.osc.service.SstpTileService"
+            android:exported="true"
+            android:icon="@android:drawable/ic_dialog_info"
+            android:label="SSTP VPN"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

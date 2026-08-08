@@ -1,0 +1,410 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: DIAGNOSTIC - inspect SSLTerminal.kt and SSL_DO_VERIFY usage
+        run: |
+          git clone --depth 1 https://github.com/kittoku/Open-SSTP-Client.git sstp-diag
+
+          echo "===== terminal/SSLTerminal.kt (full) ====="
+          find sstp-diag -path "*terminal/SSLTerminal.kt" -exec cat {} \;
+
+          echo ""
+          echo "===== Every usage of SSL_DO_VERIFY across the codebase ====="
+          grep -rn "SSL_DO_VERIFY\|doVerify" sstp-diag/app/src/main/java 2>/dev/null
+
+          echo ""
+          echo "===== control/Controller.kt: notifyError / error handling paths (full) ====="
+          find sstp-diag -path "*control/Controller.kt" -exec cat {} \;
+
+          rm -rf sstp-diag
+
+      - name: Vendor kittoku/Open-SSTP-Client sources (MIT, see LICENSES-THIRD-PARTY.md)
+        run: |
+          git clone --depth 1 https://github.com/kittoku/Open-SSTP-Client.git sstp-upstream
+
+          # Вендорим Kotlin-исходники и ресурсы целиком (не выбираем файлы
+          # руками — кодовая база большая и плотно связана внутри себя,
+          # риск случайно не захватить нужную зависимость выше, чем цена
+          # нескольких неиспользуемых классов их собственного UI, которого
+          # мы не подключаем — см. sstp/src/main/AndroidManifest.xml, он
+          # свой, урезанный, без их MainActivity/BlankActivity/TileService).
+          mkdir -p sstp/src/main/java
+          cp -r sstp-upstream/app/src/main/java/kittoku sstp/src/main/java/kittoku
+          mkdir -p sstp/src/main/res
+          cp -r sstp-upstream/app/src/main/res/. sstp/src/main/res/
+          # Их собственные иконки запуска (значок отдельного приложения)
+          # нам не нужны и рискуют столкнуться с иконкой НАШЕГО приложения
+          # при слиянии ресурсов — убираем как сами mipmap-иконки, так и
+          # компоненты adaptive-иконки (foreground/background), если они
+          # лежат отдельными файлами.
+          rm -rf sstp/src/main/res/mipmap-*
+          find sstp/src/main/res -iname "ic_launcher*" -delete
+
+          rm -rf sstp-upstream
+
+          echo "===== Vendored kotlin file count ====="
+          find sstp/src/main/java/kittoku -name "*.kt" | wc -l
+          echo "===== Vendored res dirs ====="
+          find sstp/src/main/res -maxdepth 1 -type d
+
+      - name: Download XTLS/libXray AAR (VLESS/Xray engine, official wrapper, prebuilt — no Go/gomobile needed)
+        run: |
+          mkdir -p app/libs
+          # Спрашиваем у GitHub API актуальный список ассетов последнего
+          # релиза, а не угадываем URL по имени файла — так переживём любые
+          # изменения схемы именования апстрима.
+          api_response=$(curl -sL https://api.github.com/repos/XTLS/libXray/releases/latest)
+          asset_url=$(echo "$api_response" | jq -r '.assets[] | select(.name | test("android"; "i")) | .browser_download_url' | head -n1)
+          if [ -z "$asset_url" ] || [ "$asset_url" == "null" ]; then
+            echo "Could not find Android asset in latest release. Full API response:"
+            echo "$api_response"
+            exit 1
+          fi
+          echo "Downloading: $asset_url"
+          curl -sL "$asset_url" -o /tmp/libxray_asset
+          file /tmp/libxray_asset
+          # Ассет может быть либо готовым .aar, либо .zip/.tar с .aar внутри —
+          # обрабатываем оба варианта, не угадывая заранее.
+          if unzip -l /tmp/libxray_asset 2>/dev/null | grep -qi "\.aar$"; then
+            unzip -o /tmp/libxray_asset -d /tmp/libxray_extracted
+            find /tmp/libxray_extracted -iname "*.aar" -exec cp {} app/libs/LibXray.aar \;
+          else
+            cp /tmp/libxray_asset app/libs/LibXray.aar
+          fi
+          ls -la app/libs/
+          unzip -l app/libs/LibXray.aar | head -30
+
+      - name: Vendor ics-openvpn sources (GPL-2.0, see LICENSES-THIRD-PARTY.md)
+        run: |
+          git clone --depth 1 --recurse-submodules --shallow-submodules \
+            https://github.com/schwabe/ics-openvpn.git icsopenvpn-src || echo "CLONE FAILED"
+
+          mkdir -p openvpn/src/main/cpp
+          cp -a icsopenvpn-src/main/src/main/cpp/. openvpn/src/main/cpp/
+          echo "Vendored ics-openvpn cpp tree:"
+          du -sh openvpn/src/main/cpp
+
+          # icsopenvpn-src/gradle/wrapper/gradle-wrapper.jar не проходит
+          # validate-wrappers у gradle-actions/setup-gradle (unknown JAR).
+          # Раньше сносили всю папку клона целиком (rm -rf icsopenvpn-src),
+          # но это падает с "Directory not empty" — что-то в submodules
+          # (нестандартные права/git-объекты) мешает rm -rf снести всё за
+          # раз. Проще и надёжнее удалить точечно только файлы, которые
+          # реально мешают валидации — всё нужное из клона уже скопировано
+          # в openvpn/src/main/cpp, остальное содержимое клона больше ни на
+          # что не влияет и может спокойно остаться на диске.
+          rm -f icsopenvpn-src/gradle/wrapper/gradle-wrapper.jar
+          rm -f icsopenvpn-src/gradlew icsopenvpn-src/gradlew.bat
+          find icsopenvpn-src -iname "gradle-wrapper.jar" -delete 2>/dev/null || true
+
+      - name: Vendor TunnelForge L2TP engine sources (GPL-3.0, see LICENSES-THIRD-PARTY.md)
+        run: |
+          git clone --depth 1 https://github.com/evokelektrique/tunnel-forge.git tunnelforge-src
+
+          mkdir -p l2tp/src/main/cpp
+          cp tunnelforge-src/android/app/src/main/cpp/*.c l2tp/src/main/cpp/
+          cp tunnelforge-src/android/app/src/main/cpp/*.h l2tp/src/main/cpp/
+          cp tunnelforge-src/android/app/src/main/cpp/CMakeLists.txt l2tp/src/main/cpp/CMakeLists.txt
+
+          # ПАТЧ (не в апстриме): local_tid был захардкожен на 0x1001 при
+          # каждой попытке подключения — при повторных попытках с одного и
+          # того же IP это может сталкиваться с "зависшим" состоянием
+          # туннеля на сервере от предыдущей попытки. Рандомизируем на
+          # основе времени + PID процесса (time.h/unistd.h уже подключены
+          # в l2tp.c).
+          sed -i \
+            's/uint16_t local_tid = 0x1001;/uint16_t local_tid = (uint16_t)((((unsigned)time(NULL) ^ (unsigned)getpid()) % 0xEFFEu) + 0x1001u);/' \
+            l2tp/src/main/cpp/l2tp.c
+
+          echo "Vendored files:"
+          ls -la l2tp/src/main/cpp
+
+      - name: PATCH ikev1.c - fix DH key exchange to use the server-selected group (MODP1024 or MODP2048)
+        run: |
+          # Раньше DH-ключ клиента ВСЕГДА генерировался под MODP2048 (2048 бит),
+          # ещё до отправки msg1 — то есть до того, как клиент вообще узнаёт, какую
+          # группу выберет сервер. Когда наш собственный MODP_1024-fallback (патч
+          # выше) заставляет сервер выбрать MODP1024, клиент всё равно слал
+          # 256-байтный ключ вместо 128-байтного, и сервер отклонял msg3 с
+          # "IKE Notify: INVALID-PAYLOAD-TYPE" — подтверждено байт-в-байт по
+          # реальному дампу трафика (adb logcat -s tunnel_engine:V). Значение
+          # простого числа MODP1024 — из официального RFC 2409 §6.2 (Second Oakley
+          # Group), сверено напрямую с https://www.rfc-editor.org/rfc/rfc2409.txt.
+          echo "ZXh0ZXJuIGNvbnN0IHVpbnQ4X3QgcmZjMzUyNl9tb2RwMjA0OF9wWzI1Nl07" | base64 -d > /tmp/orig_const.txt
+          echo "ZXh0ZXJuIGNvbnN0IHVpbnQ4X3QgcmZjMzUyNl9tb2RwMjA0OF9wWzI1Nl07CgovLyBSRkMgMjQwOSwg0YDQsNC30LTQtdC7IDYuMiAiU2Vjb25kIE9ha2xleSBHcm91cCIgKEdyb3VwIDIsIDEwMjQtYml0IE1PRFApIOKAlAovLyDRgdCy0LXRgNC10L3QviDQvdCw0L/RgNGP0LzRg9GOINGBINC+0YTQuNGG0LjQsNC70YzQvdGL0Lwg0YLQtdC60YHRgtC+0LwgUkZDLCDQvdC1INC/0L4g0L/QsNC80Y/RgtC4LgpzdGF0aWMgY29uc3QgdWludDhfdCByZmMyNDA5X21vZHAxMDI0X3BbMTI4XSA9IHsKICAgIDB4ZmYsIDB4ZmYsIDB4ZmYsIDB4ZmYsIDB4ZmYsIDB4ZmYsIDB4ZmYsIDB4ZmYsIDB4YzksIDB4MGYsIDB4ZGEsIDB4YTIsCiAgICAweDIxLCAweDY4LCAweGMyLCAweDM0LCAweGM0LCAweGM2LCAweDYyLCAweDhiLCAweDgwLCAweGRjLCAweDFjLCAweGQxLAogICAgMHgyOSwgMHgwMiwgMHg0ZSwgMHgwOCwgMHg4YSwgMHg2NywgMHhjYywgMHg3NCwgMHgwMiwgMHgwYiwgMHhiZSwgMHhhNiwKICAgIDB4M2IsIDB4MTMsIDB4OWIsIDB4MjIsIDB4NTEsIDB4NGEsIDB4MDgsIDB4NzksIDB4OGUsIDB4MzQsIDB4MDQsIDB4ZGQsCiAgICAweGVmLCAweDk1LCAweDE5LCAweGIzLCAweGNkLCAweDNhLCAweDQzLCAweDFiLCAweDMwLCAweDJiLCAweDBhLCAweDZkLAogICAgMHhmMiwgMHg1ZiwgMHgxNCwgMHgzNywgMHg0ZiwgMHhlMSwgMHgzNSwgMHg2ZCwgMHg2ZCwgMHg1MSwgMHhjMiwgMHg0NSwKICAgIDB4ZTQsIDB4ODUsIDB4YjUsIDB4NzYsIDB4NjIsIDB4NWUsIDB4N2UsIDB4YzYsIDB4ZjQsIDB4NGMsIDB4NDIsIDB4ZTksCiAgICAweGE2LCAweDM3LCAweGVkLCAweDZiLCAweDBiLCAweGZmLCAweDVjLCAweGI2LCAweGY0LCAweDA2LCAweGI3LCAweGVkLAogICAgMHhlZSwgMHgzOCwgMHg2YiwgMHhmYiwgMHg1YSwgMHg4OSwgMHg5ZiwgMHhhNSwgMHhhZSwgMHg5ZiwgMHgyNCwgMHgxMSwKICAgIDB4N2MsIDB4NGIsIDB4MWYsIDB4ZTYsIDB4NDksIDB4MjgsIDB4NjYsIDB4NTEsIDB4ZWMsIDB4ZTYsIDB4NTMsIDB4ODEsCiAgICAweGZmLCAweGZmLCAweGZmLCAweGZmLCAweGZmLCAweGZmLCAweGZmLCAweGZmCn07" | base64 -d > /tmp/patched_const.txt
+          echo "ICBtYmVkdGxzX2RobV9jb250ZXh0IGRobTsKICBtYmVkdGxzX2RobV9pbml0KCZkaG0pOwogIG1iZWR0bHNfbXBpIFAsIEc7CiAgbWJlZHRsc19tcGlfaW5pdCgmUCk7CiAgbWJlZHRsc19tcGlfaW5pdCgmRyk7CiAgaWYgKG1iZWR0bHNfbXBpX3JlYWRfYmluYXJ5KCZQLCByZmMzNTI2X21vZHAyMDQ4X3AsIHNpemVvZihyZmMzNTI2X21vZHAyMDQ4X3ApKSAhPSAwIHx8CiAgICAgIG1iZWR0bHNfbXBpX2xzZXQoJkcsIDIpICE9IDAgfHwgbWJlZHRsc19kaG1fc2V0X2dyb3VwKCZkaG0sICZQLCAmRykgIT0gMCkgewogICAgdHVubmVsX2VuZ2luZV9sb2coQU5EUk9JRF9MT0dfRVJST1IsIExPR19UQUcsICJJS0U6IERIIGdyb3VwIHNldHVwIGZhaWxlZCIpOwogICAgbWJlZHRsc19tcGlfZnJlZSgmUCk7CiAgICBtYmVkdGxzX21waV9mcmVlKCZHKTsKICAgIG1iZWR0bHNfZGhtX2ZyZWUoJmRobSk7CiAgICBnb3RvIGZhaWxfZmQ7CiAgfQogIG1iZWR0bHNfbXBpX2ZyZWUoJlApOwogIG1iZWR0bHNfbXBpX2ZyZWUoJkcpOwoKICB1aW50OF90IHB1YmtleVtJS0VfREhfUFVCS0VZX0JZVEVTXTsKICBpZiAobWJlZHRsc19kaG1fbWFrZV9wdWJsaWMoJmRobSwgKGludClkaG0ubGVuLCBwdWJrZXksIHNpemVvZihwdWJrZXkpLCBtYmVkdGxzX2N0cl9kcmJnX3JhbmRvbSwgJmN0cikgIT0gMCkgewogICAgdHVubmVsX2VuZ2luZV9sb2coQU5EUk9JRF9MT0dfRVJST1IsIExPR19UQUcsICJJS0U6IGRobV9tYWtlX3B1YmxpYyBmYWlsZWQiKTsKICAgIG1iZWR0bHNfZGhtX2ZyZWUoJmRobSk7CiAgICBnb3RvIGZhaWxfZmQ7CiAgfQ==" | base64 -d > /tmp/orig_dhinit.txt
+          echo "ICBtYmVkdGxzX2RobV9jb250ZXh0IGRobTsKICBtYmVkdGxzX2RobV9pbml0KCZkaG0pOwogIC8qIFBBVENIOiDQs9C10L3QtdGA0LDRhtC40Y8gREgt0LrQu9GO0YfQsCDQv9C10YDQtdC90LXRgdC10L3QsCDQvdC40LbQtSwg0L/QvtGB0LvQtSDRgNCw0LfQsdC+0YDQsCBNTTIgKNGB0LwuINCx0LvQvtC6CiAgICog0L/QvtGB0LvQtSDRgdGC0YDQvtC60LggIklLRSBQMSB0cmFuc2Zvcm0gZnJvbSBzZXJ2ZXIiKSDigJQg0YDQsNC90YzRiNC1INGN0YLQviDQtNC10LvQsNC70L7RgdGMCiAgICog0LfQtNC10YHRjCwg0LTQviDQvtGC0L/RgNCw0LLQutC4IG1zZzEsINCy0YHQtdCz0LTQsCDQttGR0YHRgtC60L4g0L/QvtC0IE1PRFAyMDQ4LCDQuNC3LdC30LAg0YfQtdCz0L4g0L/RgNC4CiAgICog0LLRi9Cx0L7RgNC1INGB0LXRgNCy0LXRgNC+0LwgTU9EUDEwMjQg0LrQu9C40LXQvdGCINCy0YHRkSDRgNCw0LLQvdC+INGB0LvQsNC7INC60LvRjtGHINC90LXQstC10YDQvdC+0LPQvgogICAqINGA0LDQt9C80LXRgNCwLiAqLwogIHVpbnQ4X3QgcHVia2V5W0lLRV9ESF9QVUJLRVlfQllURVNdOw==" | base64 -d > /tmp/patched_dhinit.txt
+          echo "ICB1aW50OF90IHBrdFsyMDQ4XTsKICB1aW50OF90IGluWzgxOTJdOwogIHNpemVfdCBvOwogIGludCBpbmxlbjs=" | base64 -d > /tmp/orig_decl.txt
+          echo "ICB1aW50OF90IHBrdFsyMDQ4XTsKICB1aW50OF90IGluWzgxOTJdOwogIHNpemVfdCBvOwogIGludCBpbmxlbjsKICBpbnQgcDFfbW9kcDEwMjQgPSAwOyAvKiBQQVRDSDog0YHQvC4g0LrQvtC80LzQtdC90YLQsNGA0LjQuCDQvdC40LbQtSDQv9GA0L4g0LLRi9Cx0L7RgCBESC3Qs9GA0YPQv9C/0YsgKi8=" | base64 -d > /tmp/patched_decl.txt
+          echo "ICAgICAgaWYgKG1ucCA9PSBJS0VfUFRfU0EpIHsKICAgICAgICBmb3IgKHNpemVfdCB6aSA9IDA7IHppICsgNCA8PSBtcGw7IHppKyspIHsKICAgICAgICAgIGlmIChtcFt6aV0gPT0gMHg4MCAmJiBtcFt6aSArIDFdID09IDB4MDEgJiYgbXBbemkgKyAyXSA9PSAweDAwICYmIG1wW3ppICsgM10gPT0gMHgwNykgewogICAgICAgICAgICBpa2UtPnAxX2FlcyA9IDE7CiAgICAgICAgICAgIGJyZWFrOwogICAgICAgICAgfQogICAgICAgIH0=" | base64 -d > /tmp/orig_detect.txt
+          echo "ICAgICAgaWYgKG1ucCA9PSBJS0VfUFRfU0EpIHsKICAgICAgICBmb3IgKHNpemVfdCB6aSA9IDA7IHppICsgNCA8PSBtcGw7IHppKyspIHsKICAgICAgICAgIGlmIChtcFt6aV0gPT0gMHg4MCAmJiBtcFt6aSArIDFdID09IDB4MDEgJiYgbXBbemkgKyAyXSA9PSAweDAwICYmIG1wW3ppICsgM10gPT0gMHgwNykgewogICAgICAgICAgICBpa2UtPnAxX2FlcyA9IDE7CiAgICAgICAgICAgIGJyZWFrOwogICAgICAgICAgfQogICAgICAgIH0KICAgICAgICAvKiBQQVRDSDog0L7Qv9GA0LXQtNC10LvRj9C10Lwg0YDQtdCw0LvRjNC90L4g0LLRi9Cx0YDQsNC90L3Rg9GOINGB0LXRgNCy0LXRgNC+0LwgREgt0LPRgNGD0L/Qv9GDIChHcm91cAogICAgICAgICAqIERlc2NyaXB0aW9uIGF0dHJpYnV0ZSA9IDB4ODAgMHgwNCAuLi4sINC30L3QsNGH0LXQvdC40LUgMHgwMDAyID0KICAgICAgICAgKiBNT0RQMTAyNCkg4oCUINGA0LDQvdGM0YjQtSDRjdGC0L4g0L3QtSDQvtGC0YHQu9C10LbQuNCy0LDQu9C+0YHRjCDQstC+0L7QsdGJ0LUsIERILdC60LvRjtGHINCy0YHQtdCz0LTQsAogICAgICAgICAqINCz0LXQvdC10YDQuNGA0L7QstCw0LvRgdGPINC/0L7QtCBNT0RQMjA0OCDQvdC10LfQsNCy0LjRgdC40LzQviDQvtGCINCy0YvQsdC+0YDQsCDRgdC10YDQstC10YDQsC4gKi8KICAgICAgICBmb3IgKHNpemVfdCB6aSA9IDA7IHppICsgNCA8PSBtcGw7IHppKyspIHsKICAgICAgICAgIGlmIChtcFt6aV0gPT0gMHg4MCAmJiBtcFt6aSArIDFdID09IDB4MDQgJiYgbXBbemkgKyAyXSA9PSAweDAwICYmIG1wW3ppICsgM10gPT0gMHgwMikgewogICAgICAgICAgICBwMV9tb2RwMTAyNCA9IDE7CiAgICAgICAgICAgIGJyZWFrOwogICAgICAgICAgfQogICAgICAgIH0=" | base64 -d > /tmp/patched_detect.txt
+          echo "ICB0dW5uZWxfbG9nKCJJS0UgUDEgdHJhbnNmb3JtIGZyb20gc2VydmVyOiAlcyIsIGlrZS0+cDFfYWVzID8gIkFFUy0xMjgtQ0JDIiA6ICIzREVTLUNCQyIpOwoKICAvKiBSZWZyZXNoIGxvY2FsL3JlbW90ZSB0dXBsZSBmb3IgTkFULUQgKG11c3QgbWF0Y2ggc291cmNlIHBvcnQgTGlicmVzd2FuIHNlZXMpLiAqLw==" | base64 -d > /tmp/orig_keygen.txt
+          echo "ICB0dW5uZWxfbG9nKCJJS0UgUDEgdHJhbnNmb3JtIGZyb20gc2VydmVyOiAlcyIsIGlrZS0+cDFfYWVzID8gIkFFUy0xMjgtQ0JDIiA6ICIzREVTLUNCQyIpOwoKICAvKiBQQVRDSDog0YLQtdC/0LXRgNGMLCDQutC+0LPQtNCwINC40LfQstC10YHRgtC90L4sINC60LDQutGD0Y4gREgt0LPRgNGD0L/Qv9GDINCy0YvQsdGA0LDQuyDRgdC10YDQstC10YAsCiAgICog0LPQtdC90LXRgNC40YDRg9C10Lwg0LrQu9GO0Ycg0LrQu9C40LXQvdGC0LAg0L/QvtC0INCt0KLQoyDQs9GA0YPQv9C/0YMgKNCwINC90LUg0LLRgdC10LPQtNCwINC/0L7QtCBNT0RQMjA0OCwg0LrQsNC6CiAgICog0YDQsNC90YzRiNC1KSDigJQg0LjQvdCw0YfQtSDRgdC10YDQstC10YAg0L7RgtC60LvQvtC90Y/QtdGCIG1zZzMg0YEKICAgKiBJS0UgTm90aWZ5OiBJTlZBTElELVBBWUxPQUQtVFlQRSDQuNC3LdC30LAg0L3QtdCy0LXRgNC90L7Qs9C+INGA0LDQt9C80LXRgNCwIEtFIHBheWxvYWQuICovCiAgewogICAgbWJlZHRsc19tcGkgUCwgRzsKICAgIG1iZWR0bHNfbXBpX2luaXQoJlApOwogICAgbWJlZHRsc19tcGlfaW5pdCgmRyk7CiAgICBpbnQgZGhfcmM7CiAgICBpZiAocDFfbW9kcDEwMjQpIHsKICAgICAgdHVubmVsX2xvZygiSUtFOiBzZXJ2ZXIgc2VsZWN0ZWQgTU9EUDEwMjQgKEdyb3VwIDIpLCB1c2luZyAxMDI0LWJpdCBESCBrZXkiKTsKICAgICAgZGhfcmMgPSBtYmVkdGxzX21waV9yZWFkX2JpbmFyeSgmUCwgcmZjMjQwOV9tb2RwMTAyNF9wLCBzaXplb2YocmZjMjQwOV9tb2RwMTAyNF9wKSk7CiAgICB9IGVsc2UgewogICAgICB0dW5uZWxfbG9nKCJJS0U6IHNlcnZlciBzZWxlY3RlZCBNT0RQMjA0OCAoR3JvdXAgMTQpLCB1c2luZyAyMDQ4LWJpdCBESCBrZXkiKTsKICAgICAgZGhfcmMgPSBtYmVkdGxzX21waV9yZWFkX2JpbmFyeSgmUCwgcmZjMzUyNl9tb2RwMjA0OF9wLCBzaXplb2YocmZjMzUyNl9tb2RwMjA0OF9wKSk7CiAgICB9CiAgICBpZiAoZGhfcmMgIT0gMCB8fCBtYmVkdGxzX21waV9sc2V0KCZHLCAyKSAhPSAwIHx8IG1iZWR0bHNfZGhtX3NldF9ncm91cCgmZGhtLCAmUCwgJkcpICE9IDApIHsKICAgICAgdHVubmVsX2VuZ2luZV9sb2coQU5EUk9JRF9MT0dfRVJST1IsIExPR19UQUcsICJJS0U6IERIIGdyb3VwIHNldHVwIGZhaWxlZCIpOwogICAgICBtYmVkdGxzX21waV9mcmVlKCZQKTsKICAgICAgbWJlZHRsc19tcGlfZnJlZSgmRyk7CiAgICAgIG1iZWR0bHNfZGhtX2ZyZWUoJmRobSk7CiAgICAgIGdvdG8gZmFpbF9mZDsKICAgIH0KICAgIG1iZWR0bHNfbXBpX2ZyZWUoJlApOwogICAgbWJlZHRsc19tcGlfZnJlZSgmRyk7CiAgICBpZiAobWJlZHRsc19kaG1fbWFrZV9wdWJsaWMoJmRobSwgKGludClkaG0ubGVuLCBwdWJrZXksIHNpemVvZihwdWJrZXkpLCBtYmVkdGxzX2N0cl9kcmJnX3JhbmRvbSwgJmN0cikgIT0gMCkgewogICAgICB0dW5uZWxfZW5naW5lX2xvZyhBTkRST0lEX0xPR19FUlJPUiwgTE9HX1RBRywgIklLRTogZGhtX21ha2VfcHVibGljIGZhaWxlZCIpOwogICAgICBtYmVkdGxzX2RobV9mcmVlKCZkaG0pOwogICAgICBnb3RvIGZhaWxfZmQ7CiAgICB9CiAgfQoKICAvKiBSZWZyZXNoIGxvY2FsL3JlbW90ZSB0dXBsZSBmb3IgTkFULUQgKG11c3QgbWF0Y2ggc291cmNlIHBvcnQgTGlicmVzd2FuIHNlZXMpLiAqLw==" | base64 -d > /tmp/patched_keygen.txt
+          echo "ICBwa3RbbysrXSA9IElLRV9QVF9OT05DRTsKICBwa3RbbysrXSA9IDA7CiAgdXRpbF93cml0ZV9iZTE2KHBrdCArIG8sICh1aW50MTZfdCkoNCArIHNpemVvZihwdWJrZXkpKSk7CiAgbyArPSAyOwogIG1lbWNweShwa3QgKyBvLCBwdWJrZXksIHNpemVvZihwdWJrZXkpKTsKICBvICs9IHNpemVvZihwdWJrZXkpOw==" | base64 -d > /tmp/orig_ke.txt
+          echo "ICBwa3RbbysrXSA9IElLRV9QVF9OT05DRTsKICBwa3RbbysrXSA9IDA7CiAgdXRpbF93cml0ZV9iZTE2KHBrdCArIG8sICh1aW50MTZfdCkoNCArIGRobS5sZW4pKTsKICBvICs9IDI7CiAgbWVtY3B5KHBrdCArIG8sIHB1YmtleSwgZGhtLmxlbik7CiAgbyArPSBkaG0ubGVuOw==" | base64 -d > /tmp/patched_ke.txt
+
+          python3 - << 'PYEOF2'
+          path = "l2tp/src/main/cpp/ikev1.c"
+          with open(path, "r") as f:
+              content = f.read()
+
+          def apply_patch(content, name, label):
+              with open(f"/tmp/orig_{name}.txt") as f:
+                  original = f.read()
+              with open(f"/tmp/patched_{name}.txt") as f:
+                  patched = f.read()
+              count = content.count(original)
+              if count != 1:
+                  raise SystemExit(
+                      f"PATCH FAILED ({label}): expected exactly 1 occurrence, found {count}. "
+                      "Upstream tunnel-forge likely changed this code - patch needs manual review."
+                  )
+              return content.replace(original, patched)
+
+          content = apply_patch(content, "const", "add rfc2409_modp1024_p constant")
+          content = apply_patch(content, "dhinit", "remove premature DH group setup")
+          content = apply_patch(content, "decl", "declare p1_modp1024")
+          content = apply_patch(content, "detect", "detect selected group from MM2 SA")
+          content = apply_patch(content, "keygen", "insert group-aware DH keygen after MM2 parse")
+          content = apply_patch(content, "ke", "use dhm.len instead of sizeof(pubkey) in msg3 KE payload")
+
+          with open(path, "w") as f:
+              f.write(content)
+          print("All 6 DH-group patches applied successfully.")
+          PYEOF2
+      - name: PATCH ikev1.c - add MODP_1024 fallback transforms to Phase 1 proposal
+        run: |
+          echo "c3RhdGljIHNpemVfdCBidWlsZF9wMV9zYSh1aW50OF90ICpiLCBzaXplX3QgY2FwKSB7CiAgc2l6ZV90IG8gPSAwOwogIGlmIChvICsgOCArIDEyMCA+IGNhcCkKICAgIHJldHVybiAwOwogIHV0aWxfd3JpdGVfYmUzMihiICsgbywgMSk7CiAgbyArPSA0OwogIHV0aWxfd3JpdGVfYmUzMihiICsgbywgMSk7CiAgbyArPSA0OwoKICAvKiBHcm91cCAweDAwMGUgPSBNT0RQMjA0OCAoUkZDIDM1MjYpLCByZXF1aXJlZCBieSBkZWZhdWx0IExpYnJlc3dhbiBsMnRwLXBzayAobW9kcDIwNDgpLiAqLwogIHN0YXRpYyBjb25zdCB1aW50OF90IGF0dHJzX2Flc1tdID0gezB4ODAsIDB4MDEsIDB4MDAsIDB4MDcsIDB4ODAsIDB4MGUsIDB4MDAsIDB4ODAsIDB4ODAsIDB4MDIsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgMHgwMCwgMHgwMiwgMHg4MCwgMHgwMywgMHgwMCwgMHgwMSwgMHg4MCwgMHgwNCwgMHgwMCwgMHgwZX07CiAgc3RhdGljIGNvbnN0IHVpbnQ4X3QgYXR0cnNfM2Rlc1tdID0gezB4ODAsIDB4MDEsIDB4MDAsIDB4MDUsIDB4ODAsIDB4MDIsIDB4MDAsIDB4MDIsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDB4ODAsIDB4MDMsIDB4MDAsIDB4MDEsIDB4ODAsIDB4MDQsIDB4MDAsIDB4MGV9OwoKICAvKgogICAqIE9uZSBJU0FLTVAgUHJvcG9zYWwgd2l0aCB0d28gVHJhbnNmb3JtIHBheWxvYWRzIChBRVMgdGhlbiAzREVTKS4gTGlicmVzd2FuIDUueCByZWplY3RzCiAgICogdHdvIGNoYWluZWQgUHJvcG9zYWwgcGF5bG9hZHMgaW5zaWRlIHRoZSBTQSAoIlByb3Bvc2FsIG11c3QgYmUgYWxvbmUgaW4gT2FrbGV5IFNBIikuCiAgICovCiAgc2l6ZV90IHByb3AwID0gbzsKICBiW28rK10gPSBJS0VfUFRfTk9ORTsKICBiW28rK10gPSAwOwogIHNpemVfdCBwcm9wX2xlbl9tID0gbzsKICBvICs9IDI7CiAgYltvKytdID0gMTsKICBiW28rK10gPSAxOwogIGJbbysrXSA9IDA7CiAgYltvKytdID0gMjsKCiAgc2l6ZV90IHQxcyA9IG87CiAgYltvKytdID0gSUtFX1BUX1Q7CiAgYltvKytdID0gMDsKICBzaXplX3QgdDFfbGVuX20gPSBvOwogIG8gKz0gMjsKICBiW28rK10gPSAxOwogIGJbbysrXSA9IDE7CiAgYltvKytdID0gMDsKICBiW28rK10gPSAwOwogIG1lbWNweShiICsgbywgYXR0cnNfYWVzLCBzaXplb2YoYXR0cnNfYWVzKSk7CiAgbyArPSBzaXplb2YoYXR0cnNfYWVzKTsKICB1dGlsX3dyaXRlX2JlMTYoYiArIHQxX2xlbl9tLCAodWludDE2X3QpKG8gLSB0MXMpKTsKCiAgc2l6ZV90IHQycyA9IG87CiAgYltvKytdID0gSUtFX1BUX05PTkU7CiAgYltvKytdID0gMDsKICBzaXplX3QgdDJfbGVuX20gPSBvOwogIG8gKz0gMjsKICBiW28rK10gPSAyOwogIGJbbysrXSA9IDE7CiAgYltvKytdID0gMDsKICBiW28rK10gPSAwOwogIG1lbWNweShiICsgbywgYXR0cnNfM2Rlcywgc2l6ZW9mKGF0dHJzXzNkZXMpKTsKICBvICs9IHNpemVvZihhdHRyc18zZGVzKTsKICB1dGlsX3dyaXRlX2JlMTYoYiArIHQyX2xlbl9tLCAodWludDE2X3QpKG8gLSB0MnMpKTsKICB1dGlsX3dyaXRlX2JlMTYoYiArIHByb3BfbGVuX20sICh1aW50MTZfdCkobyAtIHByb3AwKSk7CiAgcmV0dXJuIG87Cn0K" | base64 -d > /tmp/build_p1_sa_original.txt
+          echo "c3RhdGljIHNpemVfdCBidWlsZF9wMV9zYSh1aW50OF90ICpiLCBzaXplX3QgY2FwKSB7CiAgc2l6ZV90IG8gPSAwOwogIGlmIChvICsgOCArIDIwMCA+IGNhcCkKICAgIHJldHVybiAwOwogIHV0aWxfd3JpdGVfYmUzMihiICsgbywgMSk7CiAgbyArPSA0OwogIHV0aWxfd3JpdGVfYmUzMihiICsgbywgMSk7CiAgbyArPSA0OwoKICAvKiBHcm91cCAweDAwMGUgPSBNT0RQMjA0OCAoUkZDIDM1MjYpLCByZXF1aXJlZCBieSBkZWZhdWx0IExpYnJlc3dhbiBsMnRwLXBzayAobW9kcDIwNDgpLiAqLwogIHN0YXRpYyBjb25zdCB1aW50OF90IGF0dHJzX2Flc1tdID0gezB4ODAsIDB4MDEsIDB4MDAsIDB4MDcsIDB4ODAsIDB4MGUsIDB4MDAsIDB4ODAsIDB4ODAsIDB4MDIsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgMHgwMCwgMHgwMiwgMHg4MCwgMHgwMywgMHgwMCwgMHgwMSwgMHg4MCwgMHgwNCwgMHgwMCwgMHgwZX07CiAgc3RhdGljIGNvbnN0IHVpbnQ4X3QgYXR0cnNfM2Rlc1tdID0gezB4ODAsIDB4MDEsIDB4MDAsIDB4MDUsIDB4ODAsIDB4MDIsIDB4MDAsIDB4MDIsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDB4ODAsIDB4MDMsIDB4MDAsIDB4MDEsIDB4ODAsIDB4MDQsIDB4MDAsIDB4MGV9OwogIC8qINCf0JDQotCnICjQvdC1INCyINCw0L/RgdGC0YDQuNC80LUpOiDQvtGC0LrQsNGCINC90LAgTU9EUF8xMDI0IChHcm91cCBEZXNjcmlwdGlvbiA9IDIpIOKAlAogICAqINGC0LUg0LbQtSDRiNC40YTRgNGLL9GF0Y3RiC9hdXRoLCDRgtC+0LvRjNC60L4g0LTRgNGD0LPQsNGPIERILdCz0YDRg9C/0L/QsCwg0LTQu9GPINGB0YLQsNGA0YvRhS/QvNC40L3QuNC80LDQu9GM0L3Ri9GFCiAgICog0YHQtdGA0LLQtdGA0L7QsiAo0LzQvdC+0LPQuNC1INCz0LDQudC00Ysg0L/QviBMMlRQL0lQc2VjINC90LDRgdGC0YDQsNC40LLQsNGO0YIg0YLQvtC70YzQutC+IG1vZHAxMDI0KS4gKi8KICBzdGF0aWMgY29uc3QgdWludDhfdCBhdHRyc19hZXNfMTAyNFtdID0gezB4ODAsIDB4MDEsIDB4MDAsIDB4MDcsIDB4ODAsIDB4MGUsIDB4MDAsIDB4ODAsIDB4ODAsIDB4MDIsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAweDAwLCAweDAyLCAweDgwLCAweDAzLCAweDAwLCAweDAxLCAweDgwLCAweDA0LCAweDAwLCAweDAyfTsKICBzdGF0aWMgY29uc3QgdWludDhfdCBhdHRyc18zZGVzXzEwMjRbXSA9IHsweDgwLCAweDAxLCAweDAwLCAweDA1LCAweDgwLCAweDAyLCAweDAwLCAweDAyLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDB4ODAsIDB4MDMsIDB4MDAsIDB4MDEsIDB4ODAsIDB4MDQsIDB4MDAsIDB4MDJ9OwoKICAvKgogICAqIE9uZSBJU0FLTVAgUHJvcG9zYWwgd2l0aCBmb3VyIFRyYW5zZm9ybSBwYXlsb2FkcyAoQUVTLzIwNDgsIDNERVMvMjA0OCwgQUVTLzEwMjQsIDNERVMvMTAyNCkuCiAgICogTGlicmVzd2FuIDUueCByZWplY3RzIHR3byBjaGFpbmVkIFByb3Bvc2FsIHBheWxvYWRzIGluc2lkZSB0aGUgU0EKICAgKiAoIlByb3Bvc2FsIG11c3QgYmUgYWxvbmUgaW4gT2FrbGV5IFNBIikg4oCUIHNvIG1vcmUgREggZ3JvdXBzIG11c3QgZ28gYXMgbW9yZQogICAqIFRyYW5zZm9ybXMgd2l0aGluIHRoaXMgb25lIFByb3Bvc2FsLCBub3QgYXMgZXh0cmEgUHJvcG9zYWxzLgogICAqLwogIHNpemVfdCBwcm9wMCA9IG87CiAgYltvKytdID0gSUtFX1BUX05PTkU7CiAgYltvKytdID0gMDsKICBzaXplX3QgcHJvcF9sZW5fbSA9IG87CiAgbyArPSAyOwogIGJbbysrXSA9IDE7CiAgYltvKytdID0gMTsKICBiW28rK10gPSAwOwogIGJbbysrXSA9IDQ7CgogIHNpemVfdCB0MXMgPSBvOwogIGJbbysrXSA9IElLRV9QVF9UOwogIGJbbysrXSA9IDA7CiAgc2l6ZV90IHQxX2xlbl9tID0gbzsKICBvICs9IDI7CiAgYltvKytdID0gMTsKICBiW28rK10gPSAxOwogIGJbbysrXSA9IDA7CiAgYltvKytdID0gMDsKICBtZW1jcHkoYiArIG8sIGF0dHJzX2Flcywgc2l6ZW9mKGF0dHJzX2FlcykpOwogIG8gKz0gc2l6ZW9mKGF0dHJzX2Flcyk7CiAgdXRpbF93cml0ZV9iZTE2KGIgKyB0MV9sZW5fbSwgKHVpbnQxNl90KShvIC0gdDFzKSk7CgogIHNpemVfdCB0MnMgPSBvOwogIGJbbysrXSA9IElLRV9QVF9UOwogIGJbbysrXSA9IDA7CiAgc2l6ZV90IHQyX2xlbl9tID0gbzsKICBvICs9IDI7CiAgYltvKytdID0gMjsKICBiW28rK10gPSAxOwogIGJbbysrXSA9IDA7CiAgYltvKytdID0gMDsKICBtZW1jcHkoYiArIG8sIGF0dHJzXzNkZXMsIHNpemVvZihhdHRyc18zZGVzKSk7CiAgbyArPSBzaXplb2YoYXR0cnNfM2Rlcyk7CiAgdXRpbF93cml0ZV9iZTE2KGIgKyB0Ml9sZW5fbSwgKHVpbnQxNl90KShvIC0gdDJzKSk7CgogIHNpemVfdCB0M3MgPSBvOwogIGJbbysrXSA9IElLRV9QVF9UOwogIGJbbysrXSA9IDA7CiAgc2l6ZV90IHQzX2xlbl9tID0gbzsKICBvICs9IDI7CiAgYltvKytdID0gMzsKICBiW28rK10gPSAxOwogIGJbbysrXSA9IDA7CiAgYltvKytdID0gMDsKICBtZW1jcHkoYiArIG8sIGF0dHJzX2Flc18xMDI0LCBzaXplb2YoYXR0cnNfYWVzXzEwMjQpKTsKICBvICs9IHNpemVvZihhdHRyc19hZXNfMTAyNCk7CiAgdXRpbF93cml0ZV9iZTE2KGIgKyB0M19sZW5fbSwgKHVpbnQxNl90KShvIC0gdDNzKSk7CgogIHNpemVfdCB0NHMgPSBvOwogIGJbbysrXSA9IElLRV9QVF9OT05FOwogIGJbbysrXSA9IDA7CiAgc2l6ZV90IHQ0X2xlbl9tID0gbzsKICBvICs9IDI7CiAgYltvKytdID0gNDsKICBiW28rK10gPSAxOwogIGJbbysrXSA9IDA7CiAgYltvKytdID0gMDsKICBtZW1jcHkoYiArIG8sIGF0dHJzXzNkZXNfMTAyNCwgc2l6ZW9mKGF0dHJzXzNkZXNfMTAyNCkpOwogIG8gKz0gc2l6ZW9mKGF0dHJzXzNkZXNfMTAyNCk7CiAgdXRpbF93cml0ZV9iZTE2KGIgKyB0NF9sZW5fbSwgKHVpbnQxNl90KShvIC0gdDRzKSk7CgogIHV0aWxfd3JpdGVfYmUxNihiICsgcHJvcF9sZW5fbSwgKHVpbnQxNl90KShvIC0gcHJvcDApKTsKICByZXR1cm4gbzsKfQo=" | base64 -d > /tmp/build_p1_sa_patched.txt
+
+          python3 - << 'PYEOF2'
+          path = "l2tp/src/main/cpp/ikev1.c"
+          with open(path, "r") as f:
+              content = f.read()
+          with open("/tmp/build_p1_sa_original.txt", "r") as f:
+              original = f.read()
+          with open("/tmp/build_p1_sa_patched.txt", "r") as f:
+              patched = f.read()
+          count = content.count(original)
+          if count != 1:
+              raise SystemExit(
+                  f"PATCH FAILED: expected exactly 1 occurrence of build_p1_sa original text, found {count}. "
+                  "Upstream tunnel-forge likely changed this function - patch needs manual review."
+              )
+          content = content.replace(original, patched)
+          with open(path, "w") as f:
+              f.write(content)
+          print("Patched build_p1_sa: added MODP_1024 fallback transforms (now 4 transforms instead of 2).")
+          PYEOF2
+
+      - name: Install autotools/build toolchain (needed for strongSwan native build)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc automake autoconf libtool pkg-config gettext \
+            perl python3 flex bison gperf libgmp-dev git jq make
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK licenses and install NDK
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager --install "ndk;27.0.12077973" "ndk;30.0.14904198" "cmake;3.22.1"
+
+      - name: Install SWIG (needed for ics-openvpn's openvpn3 JNI codegen)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y swig
+          swig -version
+
+      # --- strongSwan (IKEv2): полный клон + патчи, см. :strongswan в settings.gradle.kts ---
+      # ВАЖНО: клонируем ВЕСЬ репозиторий (не только app/), потому что
+      # Android.mk этого проекта ссылается на libcharon/libstrongswan/libipsec
+      # и т.д., которые физически лежат вне frontends/android/app.
+
+      - name: Clone strongSwan source (full tree)
+        run: |
+          git clone --depth 1 https://github.com/strongswan/strongswan.git strongswan-src
+
+      - name: Prepare strongSwan sources (autogen/configure/make dist)
+        working-directory: strongswan-src
+        run: |
+          ./autogen.sh
+          ./configure
+          make dist
+
+      - name: Download OpenSSL source (needed by the official libcrypto build script)
+        run: |
+          curl -L -o openssl.tar.gz https://www.openssl.org/source/openssl-3.2.1.tar.gz
+          tar xzf openssl.tar.gz
+          echo "OPENSSL_SRC=$PWD/openssl-3.2.1" >> "$GITHUB_ENV"
+
+      - name: Patch OpenSSL build script to disable ASM (fixes armeabi-v7a "recompile with -fPIC" error)
+        working-directory: strongswan-src
+        run: |
+          grep -rl '\./Configure ' src/frontends/android/openssl/ | while read -r f; do
+            sed -i 's#\./Configure #./Configure no-asm #g' "$f"
+          done
+
+      - name: Build static libcrypto for all ABIs (official strongSwan script)
+        working-directory: strongswan-src
+        env:
+          ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/27.0.12077973
+          NO_DOCKER: 1
+        run: |
+          src/frontends/android/openssl/build.sh
+
+      - name: Convert strongSwan app module into a reusable library module
+        working-directory: strongswan-src/src/frontends/android
+        run: |
+          sed -i "s/apply plugin: 'com.android.application'/apply plugin: 'com.android.library'/" app/build.gradle
+          sed -i "/applicationId /d" app/build.gradle
+
+          python3 - <<'EOF'
+          import re
+          path = "app/src/main/AndroidManifest.xml"
+          with open(path) as f:
+              content = f.read()
+          content = re.sub(
+              r'(<intent-filter>\s*<action android:name="android.intent.action.MAIN"\s*/>\s*'
+              r'<category android:name="android.intent.category.LAUNCHER"\s*/>\s*</intent-filter>)',
+              '', content, count=1
+          )
+          with open(path, "w") as f:
+              f.write(content)
+          EOF
+
+      - name: Exclude UI screens incompatible with library R.id switch-case restriction
+        working-directory: strongswan-src/src/frontends/android
+        run: |
+          cat >> app/build.gradle <<'EOF'
+
+          android {
+              sourceSets {
+                  main {
+                      java {
+                          exclude 'org/strongswan/android/ui/TrustedCertificatesActivity.java'
+                          exclude 'org/strongswan/android/ui/VpnProfileListFragment.java'
+                          exclude 'org/strongswan/android/ui/VpnProfileImportActivity.java'
+                          exclude 'org/strongswan/android/ui/VpnProfileSelectActivity.java'
+                      }
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/org/strongswan/android/ui/MainActivity.java <<'EOF'
+          package org.strongswan.android.ui;
+
+          import android.os.Bundle;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          public class MainActivity extends AppCompatActivity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/org/strongswan/android/ui/LogActivity.java <<'EOF'
+          package org.strongswan.android.ui;
+
+          import android.os.Bundle;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          public class LogActivity extends AppCompatActivity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/org/strongswan/android/ui/VpnProfileDetailActivity.java <<'EOF'
+          package org.strongswan.android.ui;
+
+          import android.os.Bundle;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          public class VpnProfileDetailActivity extends AppCompatActivity {
+              public static final String EXTRA_VPN_PROFILE_ID = "vpn_profile_id";
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          EOF
+
+          python3 - <<'EOF'
+          import re
+          path = "app/src/main/AndroidManifest.xml"
+          with open(path) as f:
+              content = f.read()
+          names = ["TrustedCertificatesActivity", "VpnProfileSelectActivity"]
+          for name in names:
+              content = re.sub(
+                  rf'<activity[^>]*android:name="\.ui\.{name}"[^>]*>.*?</activity>',
+                  '', content, flags=re.DOTALL
+              )
+              content = re.sub(
+                  rf'<activity[^>]*android:name="\.ui\.{name}"[^>]*/>',
+                  '', content
+              )
+          with open(path, "w") as f:
+              f.write(content)
+          EOF
+
+      # --- Наш проект (:app + :strongswan) ---
+
+      - name: Remove strongSwan's own Gradle Wrapper (unused, fails gradle-actions wrapper validation)
+        run: |
+          rm -f strongswan-src/src/frontends/android/gradle/wrapper/gradle-wrapper.jar
+          rm -f strongswan-src/gradle/wrapper/gradle-wrapper.jar
+          find strongswan-src -name "gradle-wrapper.jar" -delete
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+
+      - name: Build debug APK
+        env:
+          ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/27.0.12077973
+        run: gradle assembleDebug --stacktrace
+
+      - name: DIAGNOSTIC - list native libs actually produced for :openvpn
+        run: |
+          echo "===== .so files under openvpn/build/intermediates (per-ABI) ====="
+          find openvpn/build/intermediates -iname "*.so" 2>/dev/null | sort
+          echo ""
+          echo "===== .so/executables inside the final APK ====="
+          find app/build/outputs/apk/debug -iname "*.apk" | while read -r apk; do
+            unzip -l "$apk" | grep -i "\.so$\|lib/" || true
+          done
+          echo ""
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: amnezia-simple-debug-apk
+          path: app/build/outputs/apk/debug/*.apk

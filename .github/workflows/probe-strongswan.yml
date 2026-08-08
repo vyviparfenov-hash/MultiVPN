@@ -1,0 +1,264 @@
+name: Probe strongSwan native build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe-strongswan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install autotools/build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc automake autoconf libtool pkg-config gettext \
+            perl python3 flex bison gperf libgmp-dev git jq make
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK licenses and install NDK
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager --install "ndk;27.0.12077973" "cmake;3.22.1"
+
+      - name: Clone strongSwan source (full tree — Android.mk needs the whole repo)
+        run: |
+          git clone --depth 1 https://github.com/strongswan/strongswan.git strongswan-src
+
+      - name: Prepare strongSwan sources (autogen/configure/make dist)
+        working-directory: strongswan-src
+        run: |
+          ./autogen.sh
+          ./configure
+          make dist
+
+      - name: Download OpenSSL source (needed by the official libcrypto build script)
+        run: |
+          curl -L -o openssl.tar.gz https://www.openssl.org/source/openssl-3.2.1.tar.gz
+          tar xzf openssl.tar.gz
+          echo "OPENSSL_SRC=$PWD/openssl-3.2.1" >> "$GITHUB_ENV"
+
+      - name: Patch OpenSSL build script to disable ASM (fixes armeabi-v7a "recompile with -fPIC" error)
+        working-directory: strongswan-src
+        run: |
+          grep -rl '\./Configure ' src/frontends/android/openssl/ | while read -r f; do
+            echo "Patching $f"
+            sed -i 's#\./Configure #./Configure no-asm #g' "$f"
+          done
+          grep -rn 'Configure' src/frontends/android/openssl/*.sh || true
+
+      - name: Build static libcrypto for all ABIs (official strongSwan script)
+        working-directory: strongswan-src
+        env:
+          ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/27.0.12077973
+          NO_DOCKER: 1
+        run: |
+          src/frontends/android/openssl/build.sh
+
+      - name: Show NDK path (for the next step / debugging)
+        run: |
+          echo "ANDROID_NDK_ROOT will be:"
+          ls /usr/local/lib/android/sdk/ndk
+
+      - name: Attempt ndk-build for native libs (libcharon, libstrongswan, libandroidbridge)
+        working-directory: strongswan-src/src/frontends/android/app/src/main/jni
+        env:
+          ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/27.0.12077973
+        run: |
+          $ANDROID_NDK_ROOT/ndk-build -j$(nproc) V=1
+
+      - name: Collect built .so files if any
+        if: always()
+        run: |
+          mkdir -p /tmp/strongswan-libs
+          find strongswan-src/src/frontends/android -name "*.so" -exec cp {} /tmp/strongswan-libs/ \; || true
+          find /tmp/strongswan-libs -type f
+
+      - name: Upload built libraries (or partial build output) for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strongswan-native-probe
+          path: /tmp/strongswan-libs
+          if-no-files-found: warn
+
+      - name: Attempt to build the full official strongSwan APK (validates Java+JNI+native chain end-to-end)
+        working-directory: strongswan-src/src/frontends/android
+        env:
+          ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/27.0.12077973
+        run: |
+          chmod +x gradlew || true
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload official strongSwan debug APK if built
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strongswan-official-debug-apk
+          path: strongswan-src/src/frontends/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: warn
+
+      - name: Convert strongSwan app module into a reusable library module
+        working-directory: strongswan-src/src/frontends/android
+        run: |
+          # 1) Заменяем плагин application -> library и убираем applicationId
+          #    (используется старый Groovy-синтаксис "apply plugin: '...'").
+          sed -i "s/apply plugin: 'com.android.application'/apply plugin: 'com.android.library'/" app/build.gradle
+          sed -i "/applicationId /d" app/build.gradle
+
+          # 2) Убираем launcher-активность из манифеста, чтобы модуль не пытался
+          #    быть самостоятельным приложением при мёрдже манифестов.
+          python3 - <<'EOF'
+          import re
+          path = "app/src/main/AndroidManifest.xml"
+          with open(path) as f:
+              content = f.read()
+          # Убираем весь intent-filter с MAIN/LAUNCHER у первой активности (обычно MainActivity)
+          content = re.sub(
+              r'(<intent-filter>\s*<action android:name="android.intent.action.MAIN"\s*/>\s*'
+              r'<category android:name="android.intent.category.LAUNCHER"\s*/>\s*</intent-filter>)',
+              '', content, count=1
+          )
+          with open(path, "w") as f:
+              f.write(content)
+          EOF
+          echo "--- patched app/build.gradle plugin line ---"
+          grep -n "apply plugin" app/build.gradle | head -5
+          echo "--- checking manifest for leftover LAUNCHER ---"
+          grep -n "LAUNCHER" app/src/main/AndroidManifest.xml || echo "(none left - good)"
+
+      - name: Exclude UI screens incompatible with library R.id switch-case restriction
+        working-directory: strongswan-src/src/frontends/android
+        run: |
+          # Эти экраны нам не нужны и НИЧЕМ не используются из data/logic —
+          # безопасно полностью исключить их из сборки библиотеки.
+          cat >> app/build.gradle <<'EOF'
+
+          android {
+              sourceSets {
+                  main {
+                      java {
+                          exclude 'org/strongswan/android/ui/TrustedCertificatesActivity.java'
+                          exclude 'org/strongswan/android/ui/VpnProfileListFragment.java'
+                          exclude 'org/strongswan/android/ui/VpnProfileImportActivity.java'
+                          exclude 'org/strongswan/android/ui/VpnProfileSelectActivity.java'
+                      }
+                  }
+              }
+          }
+          EOF
+
+          # MainActivity / LogActivity / VpnProfileDetailActivity удалить НЕЛЬЗЯ —
+          # на них ссылаются CharonVpnService, VpnTileService, VpnStateFragment,
+          # ImcStateFragment, VpnProfileControlActivity (как цель PendingIntent).
+          # Вместо этого заменяем их содержимое на минимальные заглушки без
+          # некомпилируемого в library-модуле switch(R.id...) в меню.
+          cat > app/src/main/java/org/strongswan/android/ui/MainActivity.java <<'EOF'
+          package org.strongswan.android.ui;
+
+          import android.os.Bundle;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          /** Заглушка: реальный экран не используется (свой UI пишем отдельно),
+           *  класс нужен только как валидная цель PendingIntent для CharonVpnService/VpnTileService. */
+          public class MainActivity extends AppCompatActivity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/org/strongswan/android/ui/LogActivity.java <<'EOF'
+          package org.strongswan.android.ui;
+
+          import android.os.Bundle;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          /** Заглушка: см. MainActivity.java — используется только как цель PendingIntent. */
+          public class LogActivity extends AppCompatActivity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/org/strongswan/android/ui/VpnProfileDetailActivity.java <<'EOF'
+          package org.strongswan.android.ui;
+
+          import android.os.Bundle;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          /** Заглушка: см. MainActivity.java — используется только как цель PendingIntent. */
+          public class VpnProfileDetailActivity extends AppCompatActivity {
+              public static final String EXTRA_VPN_PROFILE_ID = "vpn_profile_id";
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          EOF
+
+          # Из манифеста убираем только те 4 экрана, что исключены из сборки целиком.
+          python3 - <<'EOF'
+          import re
+          path = "app/src/main/AndroidManifest.xml"
+          with open(path) as f:
+              content = f.read()
+          names = ["TrustedCertificatesActivity", "VpnProfileSelectActivity"]
+          for name in names:
+              content = re.sub(
+                  rf'<activity[^>]*android:name="\.ui\.{name}"[^>]*>.*?</activity>',
+                  '', content, flags=re.DOTALL
+              )
+              content = re.sub(
+                  rf'<activity[^>]*android:name="\.ui\.{name}"[^>]*/>',
+                  '', content
+              )
+          with open(path, "w") as f:
+              f.write(content)
+          EOF
+          echo "--- remaining activity declarations ---"
+          grep -n "android:name" app/src/main/AndroidManifest.xml || true
+
+      - name: Try building the patched module as a library (sanity check)
+        working-directory: strongswan-src/src/frontends/android
+        env:
+          ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/27.0.12077973
+        run: |
+          ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Package the patched library module source (for permanent integration)
+        if: always()
+        working-directory: strongswan-src/src/frontends/android
+        run: |
+          mkdir -p /tmp/strongswan-module-src
+          rsync -a --exclude 'build' --exclude '.gradle' --exclude '.cxx' \
+            app/ /tmp/strongswan-module-src/app/
+          cp settings.gradle build.gradle gradle.properties /tmp/strongswan-module-src/ 2>/dev/null || true
+          cd /tmp && tar czf strongswan-library-module.tar.gz strongswan-module-src
+
+      - name: Upload patched library module source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strongswan-library-module-src
+          path: /tmp/strongswan-library-module.tar.gz
+          if-no-files-found: warn
+
+      - name: Upload resulting AAR if built
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strongswan-library-aar
+          path: strongswan-src/src/frontends/android/app/build/outputs/aar/**/*.aar
+          if-no-files-found: warn
