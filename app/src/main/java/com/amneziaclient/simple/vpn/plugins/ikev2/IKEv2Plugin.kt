@@ -241,15 +241,10 @@ class IKEv2Plugin @Inject constructor(
         val host = lastServerHost ?: return
         extrasJob?.cancel()
         extrasJob = pluginScope.launch {
-            // Раньше ждали всего 1.5с после сигнала CONNECTED от strongSwan —
-            // но сама маршрутизация на уровне ОС иногда доустанавливается
-            // чуть дольше самого сигнала, из-за чего этот запрос иногда
-            // успевал уйти ДО переключения таблицы маршрутизации (запрос
-            // при этом успешно проходит, просто мимо туннеля — то есть
-            // повторять при неудаче тут бесполезно, нужна просто пауза
-            // побольше перед единственной проверкой).
-            delay(4_000)
+            delay(2_000)
             val pingMs = measurePingOnceMs(host)
+
+            logActiveNetworkInfo("before publicIp fetch")
 
             val publicIp = runCatching {
                 withContext(Dispatchers.IO) {
@@ -263,6 +258,40 @@ class IKEv2Plugin @Inject constructor(
             )
 
             _stats.value = _stats.value.copy(pingMillis = pingMs, publicIp = publicIp)
+        }
+    }
+
+    /** Прямая проверка через ConnectivityManager — однозначно показывает,
+     *  какую сеть Android считает "активной по умолчанию" для НАШЕГО
+     *  процесса прямо сейчас (в том числе — идёт ли это через VPN-туннель,
+     *  TRANSPORT_VPN, или в обход него). Не зависит от поведения внешних
+     *  сервисов вроде ipify.org. */
+    private fun logActiveNetworkInfo(momentLabel: String) {
+        runCatching {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val active = cm.activeNetwork
+            val caps = active?.let { cm.getNetworkCapabilities(it) }
+            val linkProps = active?.let { cm.getLinkProperties(it) }
+            val message = "Active network ($momentLabel): network=$active " +
+                "hasVpnTransport=${caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)} " +
+                "hasWifiTransport=${caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)} " +
+                "hasCellularTransport=${caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR)} " +
+                "interfaceName=${linkProps?.interfaceName} " +
+                "dnsServers=${linkProps?.dnsServers}"
+            android.util.Log.d("IKEv2Plugin", message)
+            com.amneziaclient.simple.vpn.VpnDebugLog.log("IKEv2Plugin", message)
+
+            // Заодно все AllNetworks — вдруг Android видит VPN-сеть, но
+            // считает "активной по умолчанию" для нашего приложения
+            // какую-то другую (это уже было бы совсем другим объяснением).
+            cm.allNetworks.forEach { net ->
+                val c = cm.getNetworkCapabilities(net)
+                val lp = cm.getLinkProperties(net)
+                val line = "  network=$net isVpn=${c?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)} " +
+                    "iface=${lp?.interfaceName}"
+                android.util.Log.d("IKEv2Plugin", line)
+                com.amneziaclient.simple.vpn.VpnDebugLog.log("IKEv2Plugin", line)
+            }
         }
     }
 
@@ -285,12 +314,7 @@ class IKEv2Plugin @Inject constructor(
             AppForegroundState.onEnterForeground.collect {
                 val host = lastServerHost ?: return@collect
                 val pingMs = measurePingOnceMs(host)
-                val publicIp = runCatching {
-                    withContext(Dispatchers.IO) {
-                        URL("https://api.ipify.org").openStream().bufferedReader().use { it.readText().trim() }
-                    }
-                }.getOrNull() ?: _stats.value.publicIp
-                _stats.value = _stats.value.copy(pingMillis = pingMs, publicIp = publicIp)
+                _stats.value = _stats.value.copy(pingMillis = pingMs)
             }
         }
     }

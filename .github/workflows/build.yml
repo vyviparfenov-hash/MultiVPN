@@ -275,6 +275,53 @@ jobs:
           print("Fixed mbedtls_dhm_make_public olen parameter.")
           PYEOF2
 
+      - name: PATCH ikev1.c - fix pubkey_len hardcoded to sizeof(pubkey)=256 in Phase1 IV / HASH_I / HASH_R
+        run: |
+          # Найдено через диагностический шаг выше. Причина ГЛУБЖЕ, чем предполагалось:
+          # dhm.len уже НЕДОСТУПЕН в этих местах — mbedtls_dhm_free(&dhm) вызывается
+          # раньше (сразу после DH shared secret), чем считаются Phase1 IV, HASH_I и HASH_R.
+          # Поэтому просто заменить sizeof(pubkey) на dhm.len здесь нельзя (use-after-free).
+          # Решение: сохраняем реальную длину ключа в pubkey_len ДО free(), используем её
+          # везде вместо sizeof(pubkey) (которое всегда 256, независимо от группы).
+          echo "ICB1aW50OF90IHB1YmtleVtJS0VfREhfUFVCS0VZX0JZVEVTXTsKCiAgdWludDhfdCBpY29va2llWzhdOw==" | base64 -d > /tmp/decllen_orig.txt
+          echo "ICB1aW50OF90IHB1YmtleVtJS0VfREhfUFVCS0VZX0JZVEVTXTsKICAvKiBQQVRDSDog0YDQtdCw0LvRjNC90LDRjyDQtNC70LjQvdCwINC60LvRjtGH0LAgKDEyOCDQtNC70Y8gTU9EUDEwMjQsIDI1NiDQtNC70Y8gTU9EUDIwNDgpIOKAlAogICAqINGE0LjQutGB0LjRgNGD0LXRgtGB0Y8g0LIgY2FwdHVyZS3QsdC70L7QutC1INC90LjQttC1LCDQodCg0JDQl9CjINC/0L7RgdC70LUg0YPRgdC/0LXRiNC90L7Qs9C+CiAgICogbWJlZHRsc19kaG1fbWFrZV9wdWJsaWMoKSwg0YIu0LouIGRobSDQvtGB0LLQvtCx0L7QttC00LDQtdGC0YHRjyAobWJlZHRsc19kaG1fZnJlZSkKICAgKiDQtdGJ0ZEg0LTQviDQstGL0YfQuNGB0LvQtdC90LjRjyBQaGFzZTEgSVYgLyBIQVNIX0kgLyBIQVNIX1IsINCwIHNpemVvZihwdWJrZXkpINGC0LDQvAogICAqINCy0YHQtdCz0LTQsCDRgNCw0LLQtdC9IDI1NiDQvdC10LfQsNCy0LjRgdC40LzQviDQvtGCINCy0YvQsdGA0LDQvdC90L7QuSDQs9GA0YPQv9C/0YsuICovCiAgc2l6ZV90IHB1YmtleV9sZW4gPSAwOwoKICB1aW50OF90IGljb29raWVbOF07" | base64 -d > /tmp/decllen_patched.txt
+          echo "ICAgIGludCBtYWtlX3B1Yl9yYyA9IG1iZWR0bHNfZGhtX21ha2VfcHVibGljKCZkaG0sIChpbnQpZGhtLmxlbiwgcHVia2V5LCBkaG0ubGVuLCBtYmVkdGxzX2N0cl9kcmJnX3JhbmRvbSwgJmN0cik7CiAgICBpZiAobWFrZV9wdWJfcmMgIT0gMCkgewogICAgICB0dW5uZWxfZW5naW5lX2xvZyhBTkRST0lEX0xPR19FUlJPUiwgTE9HX1RBRywgIklLRTogZGhtX21ha2VfcHVibGljIGZhaWxlZCwgbWJlZHRsc19yYz0tMHglMDR4IGRobS5sZW49JXp1IiwKICAgICAgICAgICAgICAgICAgICAgICAgKHVuc2lnbmVkIGludCkoLW1ha2VfcHViX3JjKSwgZGhtLmxlbik7CiAgICAgIG1iZWR0bHNfZGhtX2ZyZWUoJmRobSk7CiAgICAgIGdvdG8gZmFpbF9mZDsKICAgIH0KICB9" | base64 -d > /tmp/capturelen_orig.txt
+          echo "ICAgIGludCBtYWtlX3B1Yl9yYyA9IG1iZWR0bHNfZGhtX21ha2VfcHVibGljKCZkaG0sIChpbnQpZGhtLmxlbiwgcHVia2V5LCBkaG0ubGVuLCBtYmVkdGxzX2N0cl9kcmJnX3JhbmRvbSwgJmN0cik7CiAgICBpZiAobWFrZV9wdWJfcmMgIT0gMCkgewogICAgICB0dW5uZWxfZW5naW5lX2xvZyhBTkRST0lEX0xPR19FUlJPUiwgTE9HX1RBRywgIklLRTogZGhtX21ha2VfcHVibGljIGZhaWxlZCwgbWJlZHRsc19yYz0tMHglMDR4IGRobS5sZW49JXp1IiwKICAgICAgICAgICAgICAgICAgICAgICAgKHVuc2lnbmVkIGludCkoLW1ha2VfcHViX3JjKSwgZGhtLmxlbik7CiAgICAgIG1iZWR0bHNfZGhtX2ZyZWUoJmRobSk7CiAgICAgIGdvdG8gZmFpbF9mZDsKICAgIH0KICAgIC8qIFBBVENIOiDRgdC+0YXRgNCw0L3Rj9C10Lwg0YDQtdCw0LvRjNC90YPRjiDQtNC70LjQvdGDINC60LvRjtGH0LAsINC/0L7QutCwIGRobSDQtdGJ0ZEg0LbQuNCyICjQvtC9INCx0YPQtNC10YIKICAgICAqINC+0YHQstC+0LHQvtC20LTRkdC9INC90LjQttC1LCDQv9C+0YHQu9C1IERIIHNoYXJlZCBzZWNyZXQsINCwIHNpemVvZihwdWJrZXkpINC+0YHRgtCw0ZHRgtGB0Y8KICAgICAqINC30LDRhdCw0YDQtNC60L7QttC10L0g0L3QsCAyNTYg0LLQtdC30LTQtSDQtNCw0LvRjNGI0LUg0L/QviDRhNGD0L3QutGG0LjQuCkuICovCiAgICBwdWJrZXlfbGVuID0gZGhtLmxlbjsKICB9" | base64 -d > /tmp/capturelen_patched.txt
+          echo "ICAgIHBoYXNlMV9pdl9hZXMxMjgocHVia2V5LCBzaXplb2YocHVia2V5KSwga2Vfcl9idWYsIGtlX3JfbGVuLCBwMV9pdik7" | base64 -d > /tmp/ivaes_orig.txt
+          echo "ICAgIHBoYXNlMV9pdl9hZXMxMjgocHVia2V5LCBwdWJrZXlfbGVuLCBrZV9yX2J1Ziwga2Vfcl9sZW4sIHAxX2l2KTs=" | base64 -d > /tmp/ivaes_patched.txt
+          echo "ICAgIHBoYXNlMV9pdl9zaGExKHB1YmtleSwgc2l6ZW9mKHB1YmtleSksIGtlX3JfYnVmLCBrZV9yX2xlbiwgaXY4KTs=" | base64 -d > /tmp/ivsha_orig.txt
+          echo "ICAgIHBoYXNlMV9pdl9zaGExKHB1YmtleSwgcHVia2V5X2xlbiwga2Vfcl9idWYsIGtlX3JfbGVuLCBpdjgpOw==" | base64 -d > /tmp/ivsha_patched.txt
+          echo "ICAgICAgc2l6ZV90IGhsID0gc2l6ZW9mKHB1YmtleSkgKyBrZV9yX2xlbiArIDggKyA4ICsgc2FfaGFzaF9sZW4gKyBzaXplb2YoaWRfYm9keSk7CiAgICAgIHVpbnQ4X3QgKmhiID0gbWFsbG9jKGhsID8gaGwgOiAxKTsKICAgICAgaWYgKCFoYikgewogICAgICAgIHR1bm5lbF9lbmdpbmVfbG9nKEFORFJPSURfTE9HX0VSUk9SLCBMT0dfVEFHLCAiSUtFOiBtYWxsb2MgSEFTSF9JIG1hdGVyaWFsIGZhaWxlZCIpOwogICAgICAgIGdvdG8gZmFpbF9mZDsKICAgICAgfQogICAgICBzaXplX3QgcSA9IDA7CiAgICAgIG1lbWNweShoYiArIHEsIHB1YmtleSwgc2l6ZW9mKHB1YmtleSkpOwogICAgICBxICs9IHNpemVvZihwdWJrZXkpOwogICAgICBtZW1jcHkoaGIgKyBxLCBrZV9yX2J1Ziwga2Vfcl9sZW4pOwogICAgICBxICs9IGtlX3JfbGVuOwogICAgICBtZW1jcHkoaGIgKyBxLCBpa2UtPmljb29raWUsIDgpOwogICAgICBxICs9IDg7CiAgICAgIG1lbWNweShoYiArIHEsIGlrZS0+cmNvb2tpZSwgOCk7CiAgICAgIHEgKz0gODsKICAgICAgbWVtY3B5KGhiICsgcSwgc2FfaGFzaCwgc2FfaGFzaF9sZW4pOwogICAgICBxICs9IHNhX2hhc2hfbGVuOwogICAgICBtZW1jcHkoaGIgKyBxLCBpZF9ib2R5LCBzaXplb2YoaWRfYm9keSkpOwogICAgICBxICs9IHNpemVvZihpZF9ib2R5KTsKICAgICAgdHVubmVsX2VuZ2luZV9sb2coQU5EUk9JRF9MT0dfREVCVUcsIExPR19UQUcsCiAgICAgICAgICAgICAgICAgICAgICAgICJIQVNIX0kgbWF0ZXJpYWwgWyVzXTogcHVia2V5X2xlbj0lenUga2Vfcl9sZW49JXp1IHNhX2xlbj0lenUgaWRfYm9keV9sZW49JXp1IHRvdGFsPSV6dSIsCiAgICAgICAgICAgICAgICAgICAgICAgIHNhX2hhc2hfdGFnLCBzaXplb2YocHVia2V5KSwga2Vfcl9sZW4sIHNhX2hhc2hfbGVuLCBzaXplb2YoaWRfYm9keSksIHEpOw==" | base64 -d > /tmp/hashi_orig.txt
+          echo "ICAgICAgc2l6ZV90IGhsID0gcHVia2V5X2xlbiArIGtlX3JfbGVuICsgOCArIDggKyBzYV9oYXNoX2xlbiArIHNpemVvZihpZF9ib2R5KTsKICAgICAgdWludDhfdCAqaGIgPSBtYWxsb2MoaGwgPyBobCA6IDEpOwogICAgICBpZiAoIWhiKSB7CiAgICAgICAgdHVubmVsX2VuZ2luZV9sb2coQU5EUk9JRF9MT0dfRVJST1IsIExPR19UQUcsICJJS0U6IG1hbGxvYyBIQVNIX0kgbWF0ZXJpYWwgZmFpbGVkIik7CiAgICAgICAgZ290byBmYWlsX2ZkOwogICAgICB9CiAgICAgIHNpemVfdCBxID0gMDsKICAgICAgbWVtY3B5KGhiICsgcSwgcHVia2V5LCBwdWJrZXlfbGVuKTsKICAgICAgcSArPSBwdWJrZXlfbGVuOwogICAgICBtZW1jcHkoaGIgKyBxLCBrZV9yX2J1Ziwga2Vfcl9sZW4pOwogICAgICBxICs9IGtlX3JfbGVuOwogICAgICBtZW1jcHkoaGIgKyBxLCBpa2UtPmljb29raWUsIDgpOwogICAgICBxICs9IDg7CiAgICAgIG1lbWNweShoYiArIHEsIGlrZS0+cmNvb2tpZSwgOCk7CiAgICAgIHEgKz0gODsKICAgICAgbWVtY3B5KGhiICsgcSwgc2FfaGFzaCwgc2FfaGFzaF9sZW4pOwogICAgICBxICs9IHNhX2hhc2hfbGVuOwogICAgICBtZW1jcHkoaGIgKyBxLCBpZF9ib2R5LCBzaXplb2YoaWRfYm9keSkpOwogICAgICBxICs9IHNpemVvZihpZF9ib2R5KTsKICAgICAgdHVubmVsX2VuZ2luZV9sb2coQU5EUk9JRF9MT0dfREVCVUcsIExPR19UQUcsCiAgICAgICAgICAgICAgICAgICAgICAgICJIQVNIX0kgbWF0ZXJpYWwgWyVzXTogcHVia2V5X2xlbj0lenUga2Vfcl9sZW49JXp1IHNhX2xlbj0lenUgaWRfYm9keV9sZW49JXp1IHRvdGFsPSV6dSIsCiAgICAgICAgICAgICAgICAgICAgICAgIHNhX2hhc2hfdGFnLCBwdWJrZXlfbGVuLCBrZV9yX2xlbiwgc2FfaGFzaF9sZW4sIHNpemVvZihpZF9ib2R5KSwgcSk7" | base64 -d > /tmp/hashi_patched.txt
+          echo "ICAgICAgc2l6ZV90IGhsID0ga2Vfcl9sZW4gKyBzaXplb2YocHVia2V5KSArIDggKyA4ICsgc2FfaGFzaF91c2VkX2xlbiArIGlkX3JfbGVuOwogICAgICB1aW50OF90ICpoYiA9IG1hbGxvYyhobCA/IGhsIDogMSk7CiAgICAgIGlmICghaGIpIHsKICAgICAgICB0dW5uZWxfZW5naW5lX2xvZyhBTkRST0lEX0xPR19FUlJPUiwgTE9HX1RBRywgIklLRTogbWFsbG9jIEhBU0hfUiBtYXRlcmlhbCBmYWlsZWQiKTsKICAgICAgICBnb3RvIGZhaWxfZmQ7CiAgICAgIH0KICAgICAgc2l6ZV90IHEgPSAwOwogICAgICBtZW1jcHkoaGIgKyBxLCBrZV9yX2J1Ziwga2Vfcl9sZW4pOwogICAgICBxICs9IGtlX3JfbGVuOwogICAgICBtZW1jcHkoaGIgKyBxLCBwdWJrZXksIHNpemVvZihwdWJrZXkpKTsKICAgICAgcSArPSBzaXplb2YocHVia2V5KTsKICAgICAgbWVtY3B5KGhiICsgcSwgaWtlLT5yY29va2llLCA4KTsKICAgICAgcSArPSA4OwogICAgICBtZW1jcHkoaGIgKyBxLCBpa2UtPmljb29raWUsIDgpOwogICAgICBxICs9IDg7CiAgICAgIG1lbWNweShoYiArIHEsIHNhX2hhc2hfdXNlZCwgc2FfaGFzaF91c2VkX2xlbik7CiAgICAgIHEgKz0gc2FfaGFzaF91c2VkX2xlbjsKICAgICAgbWVtY3B5KGhiICsgcSwgaWRfciwgaWRfcl9sZW4pOwogICAgICBxICs9IGlkX3JfbGVuOwogICAgICB0dW5uZWxfZW5naW5lX2xvZyhBTkRST0lEX0xPR19ERUJVRywgTE9HX1RBRywKICAgICAgICAgICAgICAgICAgICAgICAgIkhBU0hfUiBtYXRlcmlhbCBbJXNdOiBrZV9yX2xlbj0lenUgcHVia2V5X2xlbj0lenUgc2FfbGVuPSV6dSBpZF9yX2xlbj0lenUgdG90YWw9JXp1IiwKICAgICAgICAgICAgICAgICAgICAgICAgc2FfaGFzaF91c2VkX3RhZywga2Vfcl9sZW4sIHNpemVvZihwdWJrZXkpLCBzYV9oYXNoX3VzZWRfbGVuLCBpZF9yX2xlbiwgcSk7" | base64 -d > /tmp/hashr_orig.txt
+          echo "ICAgICAgc2l6ZV90IGhsID0ga2Vfcl9sZW4gKyBwdWJrZXlfbGVuICsgOCArIDggKyBzYV9oYXNoX3VzZWRfbGVuICsgaWRfcl9sZW47CiAgICAgIHVpbnQ4X3QgKmhiID0gbWFsbG9jKGhsID8gaGwgOiAxKTsKICAgICAgaWYgKCFoYikgewogICAgICAgIHR1bm5lbF9lbmdpbmVfbG9nKEFORFJPSURfTE9HX0VSUk9SLCBMT0dfVEFHLCAiSUtFOiBtYWxsb2MgSEFTSF9SIG1hdGVyaWFsIGZhaWxlZCIpOwogICAgICAgIGdvdG8gZmFpbF9mZDsKICAgICAgfQogICAgICBzaXplX3QgcSA9IDA7CiAgICAgIG1lbWNweShoYiArIHEsIGtlX3JfYnVmLCBrZV9yX2xlbik7CiAgICAgIHEgKz0ga2Vfcl9sZW47CiAgICAgIG1lbWNweShoYiArIHEsIHB1YmtleSwgcHVia2V5X2xlbik7CiAgICAgIHEgKz0gcHVia2V5X2xlbjsKICAgICAgbWVtY3B5KGhiICsgcSwgaWtlLT5yY29va2llLCA4KTsKICAgICAgcSArPSA4OwogICAgICBtZW1jcHkoaGIgKyBxLCBpa2UtPmljb29raWUsIDgpOwogICAgICBxICs9IDg7CiAgICAgIG1lbWNweShoYiArIHEsIHNhX2hhc2hfdXNlZCwgc2FfaGFzaF91c2VkX2xlbik7CiAgICAgIHEgKz0gc2FfaGFzaF91c2VkX2xlbjsKICAgICAgbWVtY3B5KGhiICsgcSwgaWRfciwgaWRfcl9sZW4pOwogICAgICBxICs9IGlkX3JfbGVuOwogICAgICB0dW5uZWxfZW5naW5lX2xvZyhBTkRST0lEX0xPR19ERUJVRywgTE9HX1RBRywKICAgICAgICAgICAgICAgICAgICAgICAgIkhBU0hfUiBtYXRlcmlhbCBbJXNdOiBrZV9yX2xlbj0lenUgcHVia2V5X2xlbj0lenUgc2FfbGVuPSV6dSBpZF9yX2xlbj0lenUgdG90YWw9JXp1IiwKICAgICAgICAgICAgICAgICAgICAgICAgc2FfaGFzaF91c2VkX3RhZywga2Vfcl9sZW4sIHB1YmtleV9sZW4sIHNhX2hhc2hfdXNlZF9sZW4sIGlkX3JfbGVuLCBxKTs=" | base64 -d > /tmp/hashr_patched.txt
+          python3 - << 'PYEOF2'
+          path = "l2tp/src/main/cpp/ikev1.c"
+          with open(path, "r") as f:
+              content = f.read()
+
+          def apply(content, orig_path, patched_path, label):
+              with open(orig_path) as f:
+                  original = f.read()
+              with open(patched_path) as f:
+                  patched = f.read()
+              count = content.count(original)
+              if count != 1:
+                  raise SystemExit(f"PATCH FAILED [{label}]: expected 1 occurrence, found {count}")
+              return content.replace(original, patched)
+
+          content = apply(content, "/tmp/decllen_orig.txt", "/tmp/decllen_patched.txt", "decl_pubkey_len")
+          content = apply(content, "/tmp/capturelen_orig.txt", "/tmp/capturelen_patched.txt", "capture_pubkey_len")
+          content = apply(content, "/tmp/ivaes_orig.txt", "/tmp/ivaes_patched.txt", "iv_aes128")
+          content = apply(content, "/tmp/ivsha_orig.txt", "/tmp/ivsha_patched.txt", "iv_sha1")
+          content = apply(content, "/tmp/hashi_orig.txt", "/tmp/hashi_patched.txt", "hash_i")
+          content = apply(content, "/tmp/hashr_orig.txt", "/tmp/hashr_patched.txt", "hash_r")
+
+          with open(path, "w") as f:
+              f.write(content)
+          print("Fixed pubkey_len usage in Phase1 IV / HASH_I / HASH_R (6 sites).")
+          PYEOF2
+
       - name: Install autotools/build toolchain (needed for strongSwan native build)
         run: |
           sudo apt-get update
