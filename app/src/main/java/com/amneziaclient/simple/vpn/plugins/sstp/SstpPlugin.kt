@@ -125,6 +125,7 @@ class SstpPlugin @Inject constructor(
         val username = fields["username"]?.trim().orEmpty()
         val password = fields["password"].orEmpty()
         val insecure = fields["insecure"]?.trim()?.lowercase() in setOf("yes", "true", "1", "да")
+        val cert = fields["cert"]?.trim().orEmpty()
 
         val configBlob = JSONObject().apply {
             put("server", server)
@@ -132,6 +133,7 @@ class SstpPlugin @Inject constructor(
             put("username", username)
             put("password", password)
             put("insecure", insecure)
+            if (cert.isNotBlank()) put("cert", cert)
         }.toString()
 
         return ImportResult.Success(
@@ -175,6 +177,7 @@ class SstpPlugin @Inject constructor(
             username = json.optString("username"),
             password = json.optString("password"),
             insecure = json.optBoolean("insecure", false),
+            certPem = json.optString("cert").ifBlank { null },
             selectedApps = selectedApps
         )
         if (error != null) {

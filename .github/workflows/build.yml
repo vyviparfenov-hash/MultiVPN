@@ -209,6 +209,30 @@ jobs:
           print("Patched build_p1_sa: added MODP_1024 fallback transforms (now 4 transforms instead of 2).")
           PYEOF2
 
+      - name: PATCH ikev1.c - log mbedtls error code for dhm_make_public failure
+        run: |
+          # "dhm_make_public failed" теперь видим в логе (MODP1024 группа
+          # определяется верно), но без кода ошибки непонятно, ПОЧЕМУ падает
+          # именно на этом шаге — добавляем вывод кода mbedTLS.
+          echo "ICAgIGlmIChtYmVkdGxzX2RobV9tYWtlX3B1YmxpYygmZGhtLCAoaW50KWRobS5sZW4sIHB1YmtleSwgc2l6ZW9mKHB1YmtleSksIG1iZWR0bHNfY3RyX2RyYmdfcmFuZG9tLCAmY3RyKSAhPSAwKSB7CiAgICAgIHR1bm5lbF9lbmdpbmVfbG9nKEFORFJPSURfTE9HX0VSUk9SLCBMT0dfVEFHLCAiSUtFOiBkaG1fbWFrZV9wdWJsaWMgZmFpbGVkIik7CiAgICAgIG1iZWR0bHNfZGhtX2ZyZWUoJmRobSk7CiAgICAgIGdvdG8gZmFpbF9mZDsKICAgIH0=" | base64 -d > /tmp/errcode_orig.txt
+          echo "ICAgIGludCBtYWtlX3B1Yl9yYyA9IG1iZWR0bHNfZGhtX21ha2VfcHVibGljKCZkaG0sIChpbnQpZGhtLmxlbiwgcHVia2V5LCBzaXplb2YocHVia2V5KSwgbWJlZHRsc19jdHJfZHJiZ19yYW5kb20sICZjdHIpOwogICAgaWYgKG1ha2VfcHViX3JjICE9IDApIHsKICAgICAgdHVubmVsX2VuZ2luZV9sb2coQU5EUk9JRF9MT0dfRVJST1IsIExPR19UQUcsICJJS0U6IGRobV9tYWtlX3B1YmxpYyBmYWlsZWQsIG1iZWR0bHNfcmM9LTB4JTA0eCBkaG0ubGVuPSV6dSIsCiAgICAgICAgICAgICAgICAgICAgICAgICh1bnNpZ25lZCBpbnQpKC1tYWtlX3B1Yl9yYyksIGRobS5sZW4pOwogICAgICBtYmVkdGxzX2RobV9mcmVlKCZkaG0pOwogICAgICBnb3RvIGZhaWxfZmQ7CiAgICB9" | base64 -d > /tmp/errcode_patched.txt
+          python3 - << 'PYEOF2'
+          path = "l2tp/src/main/cpp/ikev1.c"
+          with open(path, "r") as f:
+              content = f.read()
+          with open("/tmp/errcode_orig.txt") as f:
+              original = f.read()
+          with open("/tmp/errcode_patched.txt") as f:
+              patched = f.read()
+          count = content.count(original)
+          if count != 1:
+              raise SystemExit(f"PATCH FAILED: expected 1 occurrence, found {count}")
+          content = content.replace(original, patched)
+          with open(path, "w") as f:
+              f.write(content)
+          print("Added mbedtls error code logging for dhm_make_public.")
+          PYEOF2
+
       - name: Install autotools/build toolchain (needed for strongSwan native build)
         run: |
           sudo apt-get update

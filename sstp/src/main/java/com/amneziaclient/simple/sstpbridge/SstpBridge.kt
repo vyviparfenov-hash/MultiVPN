@@ -83,9 +83,10 @@ object SstpBridge {
         username: String,
         password: String,
         insecure: Boolean,
+        certPem: String?,
         selectedApps: Set<String>
     ): String? {
-        dlog("connect() called: host=$host port=$port username=$username insecure=$insecure selectedApps=${selectedApps.size}")
+        dlog("connect() called: host=$host port=$port username=$username insecure=$insecure certProvided=${certPem != null} selectedApps=${selectedApps.size}")
         ensureObserving(context)
         try {
             val prefs = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
@@ -98,13 +99,33 @@ object SstpBridge {
             setStringPrefValue(username, OscPrefKey.HOME_USERNAME, prefs)
             setStringPrefValue(password, OscPrefKey.HOME_PASSWORD, prefs)
             setIntPrefValue(port, OscPrefKey.SSL_PORT, prefs)
-            // По умолчанию апстрим проверяет сертификат сервера (SSL_DO_VERIFY=true)
-            // — для самоподписанных серверов (частый случай, например RouterOS/
-            // MikroTik "из коробки") это ожидаемо и честно проваливает
-            // подключение с CERT_PATH: ERR_VERIFICATION_FAILED. insecure=true
-            // отключает эту проверку — пользователь должен явно на это пойти.
+            // ВАЖНО: SSL_DO_VERIFY проверяет только совпадение ИМЕНИ ХОСТА в
+            // уже прошедшем базовую проверку сертификате — она НЕ отвечает
+            // за то, доверяем ли мы вообще самоподписанному сертификату (это
+            // подтверждено по исходнику SSLTerminal.kt: проверка доверия к
+            // сертификату происходит раньше и безусловно). Отключаем эту
+            // проверку только как мелкое доп. послабление, не как основной
+            // способ работы с самоподписанными серверами — для них
+            // используется certPem ниже.
             if (insecure) {
                 setBooleanPrefValue(false, OscPrefKey.SSL_DO_VERIFY, prefs)
+            }
+
+            // Настоящий способ подключиться к серверу с самоподписанным
+            // сертификатом: явно указать движку доверять КОНКРЕТНОМУ файлу
+            // сертификата (SSL_CERT_DIR — путь к папке, движок использует
+            // ТОЛЬКО сертификаты из неё вместо системного хранилища). Файл
+            // должен быть в формате .pem/.crt/.der (обычный X.509-сертификат,
+            // не .p12/.pfx-бандл) — иначе движок ответит
+            // "CERT: ERR_PARSING_FAILED".
+            if (!certPem.isNullOrBlank()) {
+                val certDir = java.io.File(context.filesDir, "sstp_cert").apply { mkdirs() }
+                val certFile = java.io.File(certDir, "server.pem")
+                runCatching { certFile.writeText(certPem) }
+                    .onFailure { dloge("Failed to write server cert file", it) }
+                setBooleanPrefValue(true, OscPrefKey.SSL_DO_SPECIFY_CERT, prefs)
+                setStringPrefValue(certDir.absolutePath, OscPrefKey.SSL_CERT_DIR, prefs)
+                dlog("Custom server cert written to ${certFile.absolutePath}, SSL_CERT_DIR set")
             }
 
             if (selectedApps.isNotEmpty()) {
