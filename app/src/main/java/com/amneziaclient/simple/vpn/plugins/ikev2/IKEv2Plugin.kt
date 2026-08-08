@@ -241,7 +241,14 @@ class IKEv2Plugin @Inject constructor(
         val host = lastServerHost ?: return
         extrasJob?.cancel()
         extrasJob = pluginScope.launch {
-            delay(1_500)
+            // Раньше ждали всего 1.5с после сигнала CONNECTED от strongSwan —
+            // но сама маршрутизация на уровне ОС иногда доустанавливается
+            // чуть дольше самого сигнала, из-за чего этот запрос иногда
+            // успевал уйти ДО переключения таблицы маршрутизации (запрос
+            // при этом успешно проходит, просто мимо туннеля — то есть
+            // повторять при неудаче тут бесполезно, нужна просто пауза
+            // побольше перед единственной проверкой).
+            delay(4_000)
             val pingMs = measurePingOnceMs(host)
 
             val publicIp = runCatching {
@@ -278,7 +285,12 @@ class IKEv2Plugin @Inject constructor(
             AppForegroundState.onEnterForeground.collect {
                 val host = lastServerHost ?: return@collect
                 val pingMs = measurePingOnceMs(host)
-                _stats.value = _stats.value.copy(pingMillis = pingMs)
+                val publicIp = runCatching {
+                    withContext(Dispatchers.IO) {
+                        URL("https://api.ipify.org").openStream().bufferedReader().use { it.readText().trim() }
+                    }
+                }.getOrNull() ?: _stats.value.publicIp
+                _stats.value = _stats.value.copy(pingMillis = pingMs, publicIp = publicIp)
             }
         }
     }

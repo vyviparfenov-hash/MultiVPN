@@ -233,6 +233,21 @@ jobs:
           print("Added mbedtls error code logging for dhm_make_public.")
           PYEOF2
 
+      - name: DIAGNOSTIC - find HASH_I material computation (still logs pubkey_len=256, causing info_decrypt_failed)
+        run: |
+          echo "===== Every mention of 'HASH_I material' / 'pubkey_len' in ikev1.c ====="
+          grep -n "HASH_I material\|pubkey_len" l2tp/src/main/cpp/ikev1.c
+
+          echo ""
+          echo "===== Function containing 'HASH_I material' log line, with 60 lines of context before ====="
+          LINE=$(grep -n "HASH_I material" l2tp/src/main/cpp/ikev1.c | head -1 | cut -d: -f1)
+          if [ -n "$LINE" ]; then
+            START=$((LINE - 60))
+            if [ "$START" -lt 1 ]; then START=1; fi
+            END=$((LINE + 30))
+            sed -n "${START},${END}p" l2tp/src/main/cpp/ikev1.c
+          fi
+
       - name: PATCH ikev1.c - fix mbedtls_dhm_make_public olen parameter (MBEDTLS_ERR_DHM_BAD_INPUT_DATA)
         run: |
           # Подтверждено по реальному логу: mbedtls_rc=-0x3080 =
