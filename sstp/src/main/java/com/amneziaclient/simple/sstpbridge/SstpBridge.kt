@@ -125,6 +125,16 @@ object SstpBridge {
                     .onFailure { dloge("Failed to write server cert file", it) }
                 setBooleanPrefValue(true, OscPrefKey.SSL_DO_SPECIFY_CERT, prefs)
                 setStringPrefValue(certDir.absolutePath, OscPrefKey.SSL_CERT_DIR, prefs)
+                // PATCH: библиотека (см. kittoku check.kt) отказывает в конфиге, если
+                // SSL_DO_SPECIFY_CERT=true, а SSL_VERSION остался на "DEFAULT" (именно
+                // так после importProfile(null, prefs) выше) — "Specifying trusted
+                // certificates needs SSL version to be specified". Причина не
+                // косметическая: SSLTerminal.kt при заданном сертификате вызывает
+                // SSLContext.getInstance(selectedVersion) напрямую, т.е. "DEFAULT" туда
+                // передать нельзя в принципе. TLSv1.2 — совместим и с Android (все
+                // актуальные API-уровни), и с типичными SSTP-серверами (Windows RRAS,
+                // MikroTik и т.п.); TLSv1.3 поддерживается ими не всегда.
+                setStringPrefValue("TLSv1.2", OscPrefKey.SSL_VERSION, prefs)
                 dlog("Custom server cert written to ${certFile.absolutePath}, SSL_CERT_DIR set")
             }
 

@@ -265,6 +265,19 @@ class IKEv2Plugin @Inject constructor(
                     val connection = vpnNetwork?.openConnection(url) ?: url.openConnection()
                     connection.getInputStream().bufferedReader().use { it.readText().trim() }
                 }
+            }.onFailure { e ->
+                // DIAGNOSTIC: после привязки к VPN-сети publicIp стал null вместо
+                // домашнего IP — значит сам запрос теперь падает с исключением, а не
+                // просто уходит не туда. runCatching{}.getOrNull() ниже это исключение
+                // раньше молча проглатывал — здесь логируем его явно (тип + сообщение +
+                // стектрейс), чтобы по следующему логу увидеть точную причину, а не
+                // гадать (SecurityException при попытке использовать чужую сеть из этого
+                // процесса? UnknownHostException — DNS не резолвится через tun1? Таймаут?
+                // ENETUNREACH — маршрут к 8.8.8.8/DNS-серверу отсутствует внутри тоннеля?).
+                val msg = "measureConnectionExtrasOnce: publicIp fetch FAILED: " +
+                    "${e::class.java.name}: ${e.message}"
+                android.util.Log.w("IKEv2Plugin", msg, e)
+                com.amneziaclient.simple.vpn.VpnDebugLog.log("IKEv2Plugin", msg)
             }.getOrNull()
 
             android.util.Log.d("IKEv2Plugin", "measureConnectionExtrasOnce: server=$host pingMs=$pingMs publicIp=$publicIp")
