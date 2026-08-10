@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -205,6 +206,18 @@ class SstpPlugin @Inject constructor(
                 val pingMs = measurePingOnceMs(host)
                 val publicIp = if (pingMs != null) fetchPublicIp() else null
                 dlog("health-check attempt ${attempt + 1}/5: pingMs=$pingMs publicIp=$publicIp")
+                // ВАЖНО: measurePingOnceMs() внутри делает InetAddress.isReachable() —
+                // это БЛОКИРУЮЩИЙ вызов, отмену корутины (healthCheckJob.cancel(),
+                // см. RawState.DISCONNECTED выше) он не прерывает, отменённость
+                // проверяется только в следующей точке приостановки. Если
+                // пользователь нажал "Отключить" ПОКА этот вызов уже шёл, к
+                // моменту его завершения состояние уже могло быть корректно
+                // переведено в DISCONNECTED — без этой проверки мы бы затёрли его
+                // обратно на CONNECTED (ровно так и ловилось: "Стоп" не
+                // нажимается, профиль висит "Подключено" уже после реального
+                // отключения). ensureActive() бросает CancellationException и
+                // останавливает корутину здесь же, не давая ей записать состояние.
+                ensureActive()
                 if (pingMs != null || publicIp != null) {
                     SstpEngineState.stats.value = SstpEngineState.stats.value.copy(pingMillis = pingMs, publicIp = publicIp)
                     SstpEngineState.state.value = PluginConnectionState.CONNECTED
@@ -216,6 +229,7 @@ class SstpPlugin @Inject constructor(
             }
             // Пять попыток не дали ответа — сервис формально запущен
             // (ROOT_STATE=true), но реального ответа от сервера нет.
+            ensureActive()
             SstpEngineState.state.value = PluginConnectionState.CONNECTED
             SstpEngineState.lastDetail.value = "Туннель поднят, но нет ответа от сервера"
         }
@@ -226,6 +240,8 @@ class SstpPlugin @Inject constructor(
             AppForegroundState.onEnterForeground.collect {
                 if (SstpEngineState.state.value != PluginConnectionState.CONNECTED) return@collect
                 val pingMs = measurePingOnceMs(host)
+                ensureActive() // см. комментарий в startHealthCheck() — та же причина
+                if (SstpEngineState.state.value != PluginConnectionState.CONNECTED) return@collect
                 SstpEngineState.stats.value = SstpEngineState.stats.value.copy(pingMillis = pingMs)
             }
         }

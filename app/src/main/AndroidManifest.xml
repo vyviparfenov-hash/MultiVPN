@@ -23,6 +23,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/multivpn_app_name"
         android:theme="@style/Theme.AmneziaSimple"
+        android:networkSecurityConfig="@xml/network_security_config"
         tools:replace="android:name,android:icon,android:roundIcon,android:label,android:theme">
 
         <activity
