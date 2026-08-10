@@ -642,11 +642,28 @@ class ProfilesFragment : Fragment() {
                     gravity = Gravity.START
                     inputType = android.text.InputType.TYPE_NULL
                     keyListener = null
-                    setAdapter(
+                    // Разрешаем перенос строк — иначе длинная подсказка/значение
+                    // не переносятся, а обрезаются/уезжают за край экрана
+                    // (однострочный EditText никогда не переносит текст, даже если
+                    // ширина позволяет — это раздельные свойства).
+                    isSingleLine = false
+                    maxLines = 3
+                    val optionsAdapter =
                         ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, listOf("yes", "no"))
-                    )
+                    setAdapter(optionsAdapter)
                     threshold = 0
-                    setOnClickListener { showDropDown() }
+                    setOnClickListener {
+                        // ВАЖНО: ArrayAdapter по умолчанию фильтрует список по уже
+                        // введённому тексту (стандартный autocomplete-фильтр:
+                        // показывает только пункты, начинающиеся с текущего текста).
+                        // Из-за этого при редактировании профиля, где уже стоит,
+                        // скажем, "yes", список показывал только "yes" ("no" не
+                        // начинается с "yes" — отфильтровывался), и переключить
+                        // значение было невозможно. Сбрасываем фильтр перед каждым
+                        // показом списка, чтобы всегда были видны оба варианта.
+                        optionsAdapter.filter.filter(null)
+                        showDropDown()
+                    }
                     initialFields[key]?.let { setText(it) }
                 }
             } else {
