@@ -4,20 +4,25 @@ import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
-import android.view.Gravity
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
@@ -614,106 +619,180 @@ class ProfilesFragment : Fragment() {
         else -> listOf("name" to "Название профиля")
     }
 
+    /** Иконка слева от поля — подбирается по ключевым словам в ключе поля,
+     *  чтобы не перечислять вручную все ~25 полей всех протоколов (включая
+     *  специфичные для AmneziaWG Jc/Jmin/S1/H1 и т.д.). Для полей, которым
+     *  ничего конкретного не подходит, — нейтральная "текстовая" иконка. */
+    private fun manualFieldIconFor(key: String): Int {
+        if (key == "insecure") return R.drawable.ic_shield
+        val lower = key.lowercase()
+        return when {
+            lower == "name" -> R.drawable.ic_field_name
+            lower.contains("password") || lower.contains("psk") || lower.contains("key") ->
+                R.drawable.ic_lock
+            lower.contains("server") || lower.contains("endpoint") ||
+                lower.contains("address") || lower.contains("dns") -> R.drawable.ic_field_server
+            lower.contains("port") -> R.drawable.ic_field_port
+            lower.contains("username") -> R.drawable.ic_field_person
+            lower.contains("cert") || lower.contains("content") || lower.contains("link") ->
+                R.drawable.ic_field_document
+            else -> R.drawable.ic_field_name
+        }
+    }
+
+    /** Короткая подсказка-пример ВНУТРИ поля (placeholderText), отдельно от
+     *  подписи над полем (hint). Задаём только там, где подпись сама по себе
+     *  не содержит пример — у многих полей WireGuard/AmneziaWG пример уже
+     *  встроен в текст подписи ("Address (например 10.0.0.2/32)"), дублировать
+     *  его отдельным плейсхолдером не нужно. */
+    private fun manualFieldPlaceholderFor(key: String): String? = when (key) {
+        "name" -> "Введите название"
+        "server" -> "example.com или 1.2.3.4"
+        "port" -> "443"
+        "username" -> "Введите имя пользователя"
+        "password" -> "Введите пароль"
+        "cert" -> "Вставьте текст сертификата"
+        "dns" -> "8.8.8.8"
+        "psk" -> "Вставьте PSK"
+        "ovpnContent" -> "Вставьте содержимое .ovpn"
+        "vlessLink" -> "vless://..."
+        else -> null
+    }
+
+    /** Те же сопоставления протокол -> иконка/цвет, что и в
+     *  ProfileListAdapter (там private, поэтому не переиспользуем напрямую,
+     *  а дублируем — небольшой, самодостаточный список, минимальный риск при
+     *  дублировании против связывания с другим классом). */
+    private fun protocolIconFor(protocol: VpnProtocolType): Int = when (protocol) {
+        VpnProtocolType.AMNEZIAWG -> R.drawable.ic_protocol_amneziawg
+        VpnProtocolType.WIREGUARD -> R.drawable.ic_shield
+        VpnProtocolType.OPENVPN -> R.drawable.ic_protocol_openvpn
+        VpnProtocolType.IKEV2 -> R.drawable.ic_protocol_ikev2
+        VpnProtocolType.L2TP -> R.drawable.ic_protocol_l2tp
+        VpnProtocolType.SSTP -> R.drawable.ic_protocol_sstp
+        VpnProtocolType.SOFTETHER -> R.drawable.ic_protocol_softether
+        VpnProtocolType.VLESS -> R.drawable.ic_protocol_vless
+    }
+
+    private fun protocolColorRes(protocol: VpnProtocolType): Int = when (protocol) {
+        VpnProtocolType.AMNEZIAWG -> R.color.protocol_amneziawg
+        VpnProtocolType.WIREGUARD -> R.color.protocol_wireguard
+        VpnProtocolType.OPENVPN -> R.color.protocol_openvpn
+        VpnProtocolType.IKEV2 -> R.color.protocol_ikev2
+        VpnProtocolType.L2TP -> R.color.protocol_l2tp
+        VpnProtocolType.SSTP -> R.color.protocol_sstp
+        VpnProtocolType.SOFTETHER -> R.color.protocol_softether
+        VpnProtocolType.VLESS -> R.color.protocol_vless
+    }
+
     /** [editingProfileId] == null -> добавление нового профиля;
-     *  иначе -> редактирование существующего (тот же id, поля предзаполнены). */
+     *  иначе -> редактирование существующего (тот же id, поля предзаполнены).
+     *
+     *  Выезжающий снизу лист (BottomSheetDialog), а не центрированный
+     *  AlertDialog — под общий стиль приложения (см. bg_manual_entry.xml /
+     *  AppBottomSheetDialog, тот же паттерн, что и showOptionsBottomSheet). */
     private fun showManualEntryFieldsDialog(
         plugin: VpnPlugin,
         editingProfileId: String? = null,
         initialFields: Map<String, String> = emptyMap()
     ) {
         val fieldKeys = manualFieldsFor(plugin.protocol)
-        val editTexts = LinkedHashMap<String, EditText>()
-        // "insecure" (SSTP) хранится отдельно от editTexts — Spinner НЕ
-        // наследуется от EditText, поэтому не может лежать в той же карте.
+        val inflater = LayoutInflater.from(requireContext())
+        val sheetView = inflater.inflate(R.layout.dialog_manual_entry, null, false)
+        val dialog = BottomSheetDialog(requireContext(), R.style.AppBottomSheetDialog)
+
+        sheetView.findViewById<ImageView>(R.id.dialogProtocolIcon).apply {
+            setImageResource(protocolIconFor(plugin.protocol))
+        }
+        sheetView.findViewById<FrameLayout>(R.id.dialogProtocolIconFrame).apply {
+            backgroundTintList = android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(requireContext(), protocolColorRes(plugin.protocol))
+            )
+        }
+        sheetView.findViewById<TextView>(R.id.dialogProtocolTitle).text = plugin.displayName
+        sheetView.findViewById<TextView>(R.id.dialogSubtitle).text = if (editingProfileId != null) {
+            getString(R.string.dialog_edit_profile_title)
+        } else {
+            getString(R.string.dialog_create_profile_title)
+        }
+
+        val editTexts = LinkedHashMap<String, TextInputEditText>()
+        // "insecure" хранится отдельно от editTexts — Spinner НЕ наследуется
+        // от TextInputEditText, поэтому не может лежать в той же карте.
         // Собираем оба набора вместе при сохранении (ниже).
         val spinners = LinkedHashMap<String, Spinner>()
 
-        val container = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.VERTICAL
-            val padding = (24 * resources.displayMetrics.density).toInt()
-            setPadding(padding, padding / 2, padding, padding / 2)
-        }
+        val fieldsContainer = sheetView.findViewById<LinearLayout>(R.id.dialogFieldsContainer)
         fieldKeys.forEach { (key, label) ->
             if (key == "insecure") {
-                // ПЕРЕДЕЛАНО НА Spinner: AutoCompleteTextView (даже с post{} для
-                // showDropDown() и сбросом фильтра) на части устройств всё равно
-                // открывал и тут же сам закрывал список — эта гонка открытия/
-                // закрытия свойственна самой архитектуре AutoCompleteTextView
-                // (виджет создан для автодополнения ВВОДИМОГО текста, а не для
-                // выбора из фиксированного списка, и мы его туда искусственно
-                // приспосабливали). Spinner — виджет, изначально созданный
-                // именно под "выбрать один вариант из фиксированного списка",
-                // без этой гонки в принципе.
-                //
-                // Расположение — горизонтальный ряд (текст слева, Spinner
-                // справа), а не текст сверху / Spinner снизу: текст занимает
-                // всё оставшееся место и сам переносится на несколько строк
-                // при необходимости (weight=1f), Spinner — фиксированной
-                // ширины (WRAP_CONTENT) справа от него.
-                val row = LinearLayout(requireContext()).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, (12 * resources.displayMetrics.density).toInt(), 0, 0)
-                }
-                val labelView = TextView(requireContext()).apply {
-                    text = label
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                }
+                // Spinner — виджет, изначально созданный именно под "выбрать
+                // один вариант из фиксированного списка" (в отличие от
+                // AutoCompleteTextView, который для этого пришлось бы
+                // искусственно приспосабливать — и который на части устройств
+                // сам открывал и тут же закрывал список).
+                val row = inflater.inflate(R.layout.item_manual_entry_spinner_field, fieldsContainer, false)
+                row.findViewById<TextView>(R.id.spinnerFieldLabel).text = label
                 val options = listOf("", "yes", "no")
                 val optionLabels = listOf("не выбрано", "yes", "no")
-                val spinner = Spinner(requireContext()).apply {
+                val spinner = row.findViewById<Spinner>(R.id.spinnerFieldControl).apply {
                     adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, optionLabels).also {
                         it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
                     }
                     val initial = initialFields[key].orEmpty()
                     setSelection(options.indexOf(initial).coerceAtLeast(0))
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also { it.marginStart = (12 * resources.displayMetrics.density).toInt() }
                 }
-                row.addView(labelView)
-                row.addView(spinner)
-                container.addView(row)
+                fieldsContainer.addView(row)
                 spinners[key] = spinner
                 return@forEach
             }
-            val editText = EditText(requireContext()).apply {
-                hint = label
-                gravity = Gravity.START
-                if (key == "cert" || key == "ovpnContent") {
-                    // Многострочное поле — сюда вставляется целиком текст
-                    // .pem-сертификата (IKEv2) или .ovpn-конфига (OpenVPN).
-                    minLines = 3
-                    maxLines = 8
-                    inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                        android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                }
-                initialFields[key]?.let { setText(it) }
-            }
-            editTexts[key] = editText
-            container.addView(editText)
-        }
-        val scroll = ScrollView(requireContext()).apply { addView(container) }
 
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(if (editingProfileId != null) getString(R.string.dialog_edit_profile_title) else plugin.displayName)
-            .setView(scroll)
-            .setPositiveButton(R.string.action_save) { dialog, _ ->
-                // options[selectedItemPosition] — реальное значение ("", "yes" или
-                // "no"), а не отображаемый текст ("(не выбрано...)" и т.п.).
-                val spinnerOptions = listOf("", "yes", "no")
-                val fields = editTexts.mapValues { it.value.text.toString() } +
-                    spinners.mapValues { spinnerOptions.getOrElse(it.value.selectedItemPosition) { "" } }
-                if (editingProfileId != null) {
-                    viewModel.updateProfileFromEdit(editingProfileId, plugin.protocol, fields)
-                } else {
-                    viewModel.importManualProfile(plugin.protocol, fields)
+            val fieldView = inflater.inflate(R.layout.item_manual_entry_field, fieldsContainer, false)
+            val inputLayout = fieldView as TextInputLayout
+            val editText = fieldView.findViewById<TextInputEditText>(R.id.fieldInput)
+
+            inputLayout.hint = label
+            inputLayout.startIconDrawable = ContextCompat.getDrawable(
+                requireContext(), manualFieldIconFor(key)
+            )
+            manualFieldPlaceholderFor(key)?.let { inputLayout.placeholderText = it }
+
+            when {
+                key == "password" -> {
+                    editText.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                    inputLayout.endIconMode = TextInputLayout.END_ICON_PASSWORD_TOGGLE
                 }
-                dialog.dismiss()
+                key == "cert" || key == "ovpnContent" || key == "vlessLink" -> {
+                    // Многострочное поле — сюда вставляется целиком текст
+                    // .pem-сертификата / .ovpn-конфига / vless-ссылки.
+                    editText.minLines = 3
+                    editText.maxLines = 8
+                    editText.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                }
             }
-            .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            initialFields[key]?.let { editText.setText(it) }
+
+            editTexts[key] = editText
+            fieldsContainer.addView(fieldView)
+        }
+
+        sheetView.findViewById<View>(R.id.dialogCloseButton).setOnClickListener { dialog.dismiss() }
+        sheetView.findViewById<View>(R.id.dialogCancelButton).setOnClickListener { dialog.dismiss() }
+        sheetView.findViewById<View>(R.id.dialogSaveButton).setOnClickListener {
+            // options[selectedItemPosition] — реальное значение ("", "yes" или
+            // "no"), а не отображаемый текст ("не выбрано" и т.п.).
+            val spinnerOptions = listOf("", "yes", "no")
+            val fields = editTexts.mapValues { it.value.text?.toString().orEmpty() } +
+                spinners.mapValues { spinnerOptions.getOrElse(it.value.selectedItemPosition) { "" } }
+            if (editingProfileId != null) {
+                viewModel.updateProfileFromEdit(editingProfileId, plugin.protocol, fields)
+            } else {
+                viewModel.importManualProfile(plugin.protocol, fields)
+            }
+            dialog.dismiss()
+        }
+
+        dialog.setContentView(sheetView)
+        dialog.show()
     }
 
     override fun onDestroyView() {

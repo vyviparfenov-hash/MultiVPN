@@ -44,6 +44,7 @@
     <string name="import_zip_result">Импортировано профилей: %1$d из %2$d</string>
     <string name="action_more">Ещё</string>
     <string name="dialog_edit_profile_title">Изменить профиль</string>
+    <string name="dialog_create_profile_title">Создать профиль</string>
     <string name="profile_status_connected">Подключено</string>
     <string name="profile_status_ready">Готов</string>
     <string name="error_no_profiles">Нет сохранённых профилей — сначала загрузите конфигурацию</string>

@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Три горизонтальные "полки" сервера (три отдельных прямоугольника
+         каждой полки + маленький круглый индикатор). Всё одним цветом
+         намеренно: TextInputLayout красит всю иконку одним tint-цветом
+         (PorterDuff SRC_IN) поверх реальных цветов путей — двухцветные
+         "детали для контраста" тут не сработают, форма строится через
+         геометрию/промежутки между фигурами, а не через цвет. -->
+    <path android:fillColor="@android:color/white"
+        android:pathData="M3,4h13v4H3z M18,5.5m-1,0a1,1 0,1 1,2 0a1,1 0,1 1,-2 0"/>
+    <path android:fillColor="@android:color/white"
+        android:pathData="M3,10h13v4H3z M18,11.5m-1,0a1,1 0,1 1,2 0a1,1 0,1 1,-2 0"/>
+    <path android:fillColor="@android:color/white"
+        android:pathData="M3,16h13v4H3z M18,17.5m-1,0a1,1 0,1 1,2 0a1,1 0,1 1,-2 0"/>
+</vector>

@@ -242,7 +242,20 @@ class SstpPlugin @Inject constructor(
             // нет, так что явная привязка к найденной VPN-сети здесь должна
             // сработать без EPERM.
             logActiveNetworkInfo("before health-check ping loop")
-            val vpnNetwork = findVpnNetwork()
+            // FIX: по логу — findVpnNetwork() опаздывал ровно на ~330 мс
+            // относительно момента, когда IPTerminal реально заканчивает
+            // настройку интерфейса (стабильно во всех попытках подключения в
+            // этом логе: 3.021с против 3.351с от ROOT_STATE=true). Это чистая
+            // гонка по времени, а не принципиальная недоступность VPN-сети —
+            // опрашиваем с интервалом, а не полагаемся на один-единственный
+            // момент проверки.
+            var vpnNetwork = findVpnNetwork()
+            var retriesLeft = 10
+            while (vpnNetwork == null && retriesLeft > 0) {
+                delay(200)
+                vpnNetwork = findVpnNetwork()
+                retriesLeft--
+            }
             dlog("findVpnNetwork() result: $vpnNetwork")
             repeat(5) { attempt ->
                 // DIAGNOSTIC: withTimeoutOrNull(8_000) в fetchPublicIp() уже стоит,
