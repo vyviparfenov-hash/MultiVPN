@@ -202,12 +202,20 @@ jobs:
           print("Added IP/DNS/routing/MTU diagnostic logging to IPTerminal.kt.")
           PYEOF2
       - name: Download XTLS/libXray AAR (VLESS/Xray engine, official wrapper, prebuilt — no Go/gomobile needed)
+        env:
+          # PATCH: раньше запрос к GitHub API шёл без авторизации — лимит
+          # всего 60 запросов/час на IP, и раннеры CI этот лимит делят между
+          # собой (реальная ошибка из лога: "API rate limit exceeded for
+          # 68.220.59.112"). GITHUB_TOKEN доступен в Actions уже готовым,
+          # прав на чтение публичного релиза достаточно (permissions:
+          # contents: read — дефолт), с ним лимит поднимается до 5000/час.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p app/libs
           # Спрашиваем у GitHub API актуальный список ассетов последнего
           # релиза, а не угадываем URL по имени файла — так переживём любые
           # изменения схемы именования апстрима.
-          api_response=$(curl -sL https://api.github.com/repos/XTLS/libXray/releases/latest)
+          api_response=$(curl -sL -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" https://api.github.com/repos/XTLS/libXray/releases/latest)
           asset_url=$(echo "$api_response" | jq -r '.assets[] | select(.name | test("android"; "i")) | .browser_download_url' | head -n1)
           if [ -z "$asset_url" ] || [ "$asset_url" == "null" ]; then
             echo "Could not find Android asset in latest release. Full API response:"
