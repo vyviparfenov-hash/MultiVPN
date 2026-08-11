@@ -351,10 +351,21 @@ class ProfilesFragment : Fragment() {
         }
     }
 
-    private fun mimeTypeFor(filename: String): String = when (filename.substringAfterLast('.', "")) {
+    /** MediaStore на некоторых версиях Android нормализует имя файла под
+     *  заявленный MIME-тип, если расширение не "узнаёт" как соответствующее
+     *  этому типу — например, .sstp с MIME "text/plain" рискует получить
+     *  дописанное ".txt" сверху (".sstp.txt"). Ровно так объясняется
+     *  сообщённый баг: множественный экспорт (.zip, настоящий MIME) работал,
+     *  а одиночный (.sstp/.l2tp/.sswan/.ovpn и т.п., все ранее шли как
+     *  "text/plain") — нет: при повторном импорте расширение определялось
+     *  уже по ".txt", протокол не находился, и файл падал в фолбэк-парсер
+     *  AmneziaWG с ошибкой. "application/octet-stream" — без "канонического"
+     *  расширения, которое система захотела бы навязать взамен. */
+    private fun mimeTypeFor(filename: String): String = when (filename.substringAfterLast('.', "").lowercase()) {
         "zip" -> "application/zip"
         "json" -> "application/json"
-        else -> "text/plain"
+        "txt" -> "text/plain"
+        else -> "application/octet-stream"
     }
 
     /** Кладёт файл в публичную папку "Загрузки" через MediaStore (без
@@ -735,8 +746,8 @@ class ProfilesFragment : Fragment() {
                 val options = listOf("", "yes", "no")
                 val optionLabels = listOf("не выбрано", "yes", "no")
                 val spinner = row.findViewById<Spinner>(R.id.spinnerFieldControl).apply {
-                    adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, optionLabels).also {
-                        it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                    adapter = ArrayAdapter(requireContext(), R.layout.item_spinner_selected_compact, optionLabels).also {
+                        it.setDropDownViewResource(R.layout.item_spinner_dropdown_compact)
                     }
                     val initial = initialFields[key].orEmpty()
                     setSelection(options.indexOf(initial).coerceAtLeast(0))
