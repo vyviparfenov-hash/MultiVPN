@@ -644,21 +644,37 @@ class ProfilesFragment : Fragment() {
                 // приспосабливали). Spinner — виджет, изначально созданный
                 // именно под "выбрать один вариант из фиксированного списка",
                 // без этой гонки в принципе.
-                val labelView = TextView(requireContext()).apply {
-                    text = label
+                //
+                // Расположение — горизонтальный ряд (текст слева, Spinner
+                // справа), а не текст сверху / Spinner снизу: текст занимает
+                // всё оставшееся место и сам переносится на несколько строк
+                // при необходимости (weight=1f), Spinner — фиксированной
+                // ширины (WRAP_CONTENT) справа от него.
+                val row = LinearLayout(requireContext()).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
                     setPadding(0, (12 * resources.displayMetrics.density).toInt(), 0, 0)
                 }
+                val labelView = TextView(requireContext()).apply {
+                    text = label
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
                 val options = listOf("", "yes", "no")
-                val optionLabels = listOf("(не выбрано — по умолчанию no)", "yes", "no")
+                val optionLabels = listOf("не выбрано", "yes", "no")
                 val spinner = Spinner(requireContext()).apply {
                     adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, optionLabels).also {
                         it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
                     }
                     val initial = initialFields[key].orEmpty()
                     setSelection(options.indexOf(initial).coerceAtLeast(0))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also { it.marginStart = (12 * resources.displayMetrics.density).toInt() }
                 }
-                container.addView(labelView)
-                container.addView(spinner)
+                row.addView(labelView)
+                row.addView(spinner)
+                container.addView(row)
                 spinners[key] = spinner
                 return@forEach
             }

@@ -1,6 +1,8 @@
 package com.amneziaclient.simple.vpn.plugins.sstp
 
 import android.content.Context
+import android.net.TrafficStats
+import android.os.Process
 import android.util.Log
 import com.amneziaclient.simple.sstpbridge.SstpBridge
 import com.amneziaclient.simple.vpn.AppForegroundState
@@ -22,6 +24,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -50,6 +53,9 @@ class SstpPlugin @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var healthCheckJob: Job? = null
+    private var statsPollJob: Job? = null
+    private var trafficBaselineRx: Long? = null
+    private var trafficBaselineTx: Long? = null
     private var currentServerHost: String? = null
     private var currentDnsServer: String? = null
 
@@ -60,6 +66,9 @@ class SstpPlugin @Inject constructor(
 
     companion object {
         private const val TAG = "SstpPlugin"
+        private const val STATS_POLL_INTERVAL_MS = 2_000L
+        private const val STATS_POLL_INTERVAL_BACKGROUND_MS = 15_000L
+        private val UNSUPPORTED = TrafficStats.UNSUPPORTED.toLong()
     }
 
     override val id: String = "sstp"
@@ -81,6 +90,9 @@ class SstpPlugin @Inject constructor(
                 when (raw) {
                     SstpBridge.RawState.DISCONNECTED -> {
                         healthCheckJob?.cancel()
+                        statsPollJob?.cancel()
+                        trafficBaselineRx = null
+                        trafficBaselineTx = null
                         currentServerHost = null
                         currentDnsServer = null
                         SstpEngineState.state.value = PluginConnectionState.DISCONNECTED
@@ -217,18 +229,21 @@ class SstpPlugin @Inject constructor(
             // выполняется вовремя (Dispatchers.Default чем-то занят/голодает),
             // а не физическая сеть тормозит.
             dlog("startHealthCheck: delay(3000) elapsed, entering ping loop")
-            // DIAGNOSTIC: на IKEv2 мы уже ловили точно такую же картину ("IP
-            // показывает домашний") — и там причиной было то, что процесс
-            // приложения по умолчанию НЕ маршрутизировался через собственный
-            // VPN (strongSwan сам себя исключал ради CRL-фетчера). У kittoku
-            // такого явного самоисключения в коде нет (protect() вызывается
-            // только на конкретном control-сокете SSTP, не на всё приложение),
-            // но мы никогда напрямую не проверяли, действительно ли трафик
-            // ИМЕННО этого health-check идёт через туннель, или тоже в обход
-            // него — а сейчас на своём сервере видим ту же картину (домашний
-            // IP), так что стоит проверить, а не полагаться на "теоретически
-            // должно быть иначе".
+            // DIAGNOSTIC/FIX: подтверждено логом — hasVpnTransport=false для
+            // "активной по умолчанию" сети процесса этого приложения (см.
+            // logActiveNetworkInfo ниже), то есть ВЕСЬ трафик health-check'а
+            // (включая fetchPublicIp и rawTcpConnect) до сих пор шёл в обход
+            // туннеля, по wlan0/мобильной сети — отсюда и "показывает домашний
+            // IP", и все прошлые выводы про "файрвол на сервере блокирует TCP"
+            // были построены на тесте, который туннель вообще не использовал.
+            // В отличие от IKEv2 (где strongSwan сам явно исключает своё
+            // приложение из тоннеля ради CRL-фетчера, и явная привязка к VPN-
+            // сети падает с EPERM) — у kittoku такого самоисключения в коде
+            // нет, так что явная привязка к найденной VPN-сети здесь должна
+            // сработать без EPERM.
             logActiveNetworkInfo("before health-check ping loop")
+            val vpnNetwork = findVpnNetwork()
+            dlog("findVpnNetwork() result: $vpnNetwork")
             repeat(5) { attempt ->
                 // DIAGNOSTIC: withTimeoutOrNull(8_000) в fetchPublicIp() уже стоит,
                 // но реальная задержка в логе всё равно ~60+ секунд вместо
@@ -240,7 +255,10 @@ class SstpPlugin @Inject constructor(
                 val t0 = System.currentTimeMillis()
                 val pingMs = measurePingOnceMs(host)
                 val t1 = System.currentTimeMillis()
-                val publicIp = if (pingMs != null) fetchPublicIp() else null
+                // ВАЖНО: теперь явно привязан к VPN-сети — это единственный
+                // способ узнать РЕАЛЬНЫЙ публичный IP тоннеля, а не той сети,
+                // что Android выбрал бы "по умолчанию" для этого процесса.
+                val publicIp = if (pingMs != null) fetchPublicIp(vpnNetwork) else null
                 val t2 = System.currentTimeMillis()
                 val externalPingMs = measurePingOnceMs("1.1.1.1")
                 val t3 = System.currentTimeMillis()
@@ -251,19 +269,15 @@ class SstpPlugin @Inject constructor(
                 // работает" от "работает всё, кроме крупных пакетов (MTU)".
                 val dnsServerPingMs = currentDnsServer?.let { measurePingOnceMs(it) }
                 val t4 = System.currentTimeMillis()
-                // DIAGNOSTIC: самый "чистый" тест из всех — голое TCP-соединение
-                // по IP:порту (1.1.1.1:443, Cloudflare, гарантированно принимает
-                // TCP-подключения) в обход DNS, HTTP и TLS-рукопожатия целиком.
-                // isReachable() выше на некоторых Android-версиях сам по себе
-                // падает на TCP-connect как fallback (ICMP обычно недоступен
-                // обычным приложениям без root) — но чтобы не полагаться на
-                // непрозрачную внутреннюю логику, проверяем TCP явно и
-                // однозначно: либо реальное TCP-соединение до внешнего хоста
-                // проходит через туннель, либо нет.
+                // ВАЖНО: тоже теперь через vpnNetwork — раньше этот тест (как и
+                // всё остальное) фактически проверял обычную сеть телефона, а
+                // не туннель, из-за чего прошлый вывод "файрвол сервера
+                // блокирует TCP" мог быть в корне неверным.
                 val rawTcpConnectMs = runCatching {
                     val tcpStart = System.currentTimeMillis()
-                    java.net.Socket().use { socket ->
-                        socket.connect(java.net.InetSocketAddress("1.1.1.1", 443), 5_000)
+                    val socket = vpnNetwork?.socketFactory?.createSocket() ?: java.net.Socket()
+                    socket.use {
+                        it.connect(java.net.InetSocketAddress("1.1.1.1", 443), 5_000)
                     }
                     System.currentTimeMillis() - tcpStart
                 }.getOrNull()
@@ -289,6 +303,7 @@ class SstpPlugin @Inject constructor(
                     SstpEngineState.state.value = PluginConnectionState.CONNECTED
                     SstpEngineState.lastDetail.value = null
                     startPingRefreshOnForeground(host)
+                    startTrafficStatsPolling()
                     return@launch
                 }
                 delay(2_000)
@@ -298,6 +313,47 @@ class SstpPlugin @Inject constructor(
             ensureActive()
             SstpEngineState.state.value = PluginConnectionState.CONNECTED
             SstpEngineState.lastDetail.value = "Туннель поднят, но нет ответа от сервера"
+            startTrafficStatsPolling()
+        }
+    }
+
+    /** Приём взят из IKEv2Plugin.kt — там же объяснение, почему он вообще
+     *  работает: TrafficStats.getUidRxBytes/getUidTxBytes считает трафик по
+     *  UID приложения, а не по конкретной сети/интерфейсу — а раз это
+     *  приложение держит VpnService, ВЕСЬ трафик, идущий через созданный им
+     *  туннель (в том числе от других приложений), Android относит на его же
+     *  UID. Поэтому подход протокол-агностичный и одинаково работает что для
+     *  IKEv2, что для SSTP — берём разницу (дельту) от значения на момент
+     *  подключения, а не абсолютные числа (которые считаются с момента
+     *  загрузки устройства).
+     *
+     *  На части прошивок/устройств TrafficStats может быть недоступен — тогда
+     *  оба метода возвращают TrafficStats.UNSUPPORTED (-1), и в этом случае
+     *  честно ничего не показываем (трафик остаётся на 0), а не подставляем
+     *  нули как будто это реальные данные. */
+    private fun startTrafficStatsPolling() {
+        statsPollJob?.cancel()
+        val uid = Process.myUid()
+        val baseRx = TrafficStats.getUidRxBytes(uid)
+        val baseTx = TrafficStats.getUidTxBytes(uid)
+        if (baseRx == UNSUPPORTED || baseTx == UNSUPPORTED) return
+
+        trafficBaselineRx = baseRx
+        trafficBaselineTx = baseTx
+        statsPollJob = scope.launch {
+            while (isActive) {
+                val rx = TrafficStats.getUidRxBytes(uid)
+                val tx = TrafficStats.getUidTxBytes(uid)
+                if (rx != UNSUPPORTED && tx != UNSUPPORTED) {
+                    val baseR = trafficBaselineRx ?: rx
+                    val baseT = trafficBaselineTx ?: tx
+                    SstpEngineState.stats.value = SstpEngineState.stats.value.copy(
+                        bytesReceived = (rx - baseR).coerceAtLeast(0),
+                        bytesSent = (tx - baseT).coerceAtLeast(0)
+                    )
+                }
+                delay(if (AppForegroundState.isForeground.value) STATS_POLL_INTERVAL_MS else STATS_POLL_INTERVAL_BACKGROUND_MS)
+            }
         }
     }
 
@@ -348,7 +404,16 @@ class SstpPlugin @Inject constructor(
         if (reachable) System.currentTimeMillis() - start else null
     }.getOrNull()
 
-    private suspend fun fetchPublicIp(): String? = runCatching {
+    private fun findVpnNetwork(): android.net.Network? {
+        return runCatching {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            cm.allNetworks.firstOrNull { net ->
+                cm.getNetworkCapabilities(net)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+            }
+        }.getOrNull()
+    }
+
+    private suspend fun fetchPublicIp(network: android.net.Network?): String? = runCatching {
         // FIX v2: withTimeoutOrNull САМ ПО СЕБЕ здесь недостаточен — он
         // перестаёт ЖДАТЬ результат через 8 секунд, но НЕ убивает и не
         // прерывает уже запущенный блокирующий вызов URL.openStream() —
@@ -365,8 +430,17 @@ class SstpPlugin @Inject constructor(
         // блокирующий вызов гарантированно кинет SocketTimeoutException и
         // реально освободит поток, а не просто перестанет быть интересен
         // вызывающему коду.
+        //
+        // FIX v3: подтверждено логом (logActiveNetworkInfo) — "активная по
+        // умолчанию" сеть для этого процесса НЕ является VPN (hasVpnTransport=
+        // false), даже когда туннель реально поднят. Обычный url.openConnection()
+        // уходил в обход туннеля, поэтому показывал не тот IP. Явно открываем
+        // соединение через найденную VPN-сеть (Network.openConnection), если
+        // она есть; иначе — как раньше (для случая, когда VPN-сеть почему-то
+        // не нашлась, лучше попытаться через обычную, чем не пытаться вовсе).
         withContext(Dispatchers.IO) {
-            val connection = URL("https://api.ipify.org").openConnection() as java.net.HttpURLConnection
+            val url = URL("https://api.ipify.org")
+            val connection = (network?.openConnection(url) ?: url.openConnection()) as java.net.HttpURLConnection
             connection.connectTimeout = 5_000
             connection.readTimeout = 5_000
             try {
