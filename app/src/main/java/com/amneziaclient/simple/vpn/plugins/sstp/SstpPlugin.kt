@@ -261,13 +261,29 @@ class SstpPlugin @Inject constructor(
 
     private suspend fun measurePingOnceMs(host: String): Long? = runCatching {
         val start = System.currentTimeMillis()
-        val reachable = withContext(Dispatchers.IO) { InetAddress.getByName(host).isReachable(3000) }
+        // withTimeoutOrNull — доп. подстраховка сверху: isReachable(3000) в
+        // теории уже ограничен 3 секундами сам по себе, но на некоторых
+        // версиях Android/сетевых стеках этот встроенный таймаут не всегда
+        // соблюдается надёжно.
+        val reachable = withTimeoutOrNull(5_000) {
+            withContext(Dispatchers.IO) { InetAddress.getByName(host).isReachable(3000) }
+        } ?: false
         if (reachable) System.currentTimeMillis() - start else null
     }.getOrNull()
 
     private suspend fun fetchPublicIp(): String? = runCatching {
-        withContext(Dispatchers.IO) {
-            URL("https://api.ipify.org").openStream().bufferedReader().use { it.readText().trim() }
+        // DIAGNOSTIC/FIX: по логу — ping отрабатывал за ~40 мс, а следующая
+        // строка лога (уже включающая и pingMs, И publicIp) появлялась только
+        // через ~60 СЕКУНД. У URL(...).openStream() ниже не было вообще
+        // никакого таймаута (по умолчанию — 0, т.е. ждать бесконечно/пока не
+        // сработает таймаут самого TCP-стека ОС, который может быть очень
+        // большим) — именно тут и терялось время, а не в самом пинге.
+        // withTimeoutOrNull режет ожидание жёстко, независимо от того, что
+        // именно внутри зависло (DNS, TCP-коннект или чтение ответа).
+        withTimeoutOrNull(8_000) {
+            withContext(Dispatchers.IO) {
+                URL("https://api.ipify.org").openStream().bufferedReader().use { it.readText().trim() }
+            }
         }
     }.getOrNull()
 }
