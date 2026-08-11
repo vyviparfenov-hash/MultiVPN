@@ -150,6 +150,22 @@ object SstpBridge {
                 dlog("Custom DNS server set: $dns")
             }
 
+            // По умолчанию у kittoku PPP_MTU=1500 — это MTU обычного Ethernet,
+            // а не то, что реально помещается в SSTP-туннель. SSTP = PPP поверх
+            // TLS поверх TCP поверх IP: каждый уровень добавляет свой заголовок
+            // (TCP/IP ~40 байт, TLS record ~20-40 байт, PPP-обрамление). Если
+            // пакет ВНУТРИ туннеля уже 1500 байт, "снаружи" (после всех этих
+            // заголовков) он превышает MTU физической сети — а многие сети и
+            // файрволы блокируют ICMP "Fragmentation Needed", на который
+            // рассчитан Path MTU Discovery, из-за чего такие пакеты просто
+            // молча теряются. Это классическая причина ровно той картины, на
+            // которую жалуются: маленькие пакеты (ping, DNS-запросы) проходят,
+            // а обычная работа (HTTPS-страницы, вообще что угодно крупнее
+            // одного пакета) — нет. 1400 — общепринятое безопасное значение
+            // для TLS-туннелей поверх обычного Ethernet (1500 - запас на все
+            // добавленные заголовки).
+            setIntPrefValue(1400, OscPrefKey.PPP_MTU, prefs)
+
             val checkError = checkPreferences(prefs)
             if (checkError != null) {
                 dloge("checkPreferences() rejected config: $checkError")

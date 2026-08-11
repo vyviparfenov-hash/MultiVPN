@@ -51,6 +51,7 @@ class SstpPlugin @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var healthCheckJob: Job? = null
     private var currentServerHost: String? = null
+    private var currentDnsServer: String? = null
 
     private fun dlog(message: String) {
         Log.d(TAG, message)
@@ -81,6 +82,7 @@ class SstpPlugin @Inject constructor(
                     SstpBridge.RawState.DISCONNECTED -> {
                         healthCheckJob?.cancel()
                         currentServerHost = null
+                        currentDnsServer = null
                         SstpEngineState.state.value = PluginConnectionState.DISCONNECTED
                         SstpEngineState.stats.value = ConnectionStats()
                         SstpEngineState.lastDetail.value = null
@@ -169,6 +171,7 @@ class SstpPlugin @Inject constructor(
             return
         }
         currentServerHost = server
+        currentDnsServer = json.optString("dns").ifBlank { null }
         SstpEngineState.state.value = PluginConnectionState.CONNECTING
         SstpEngineState.stats.value = ConnectionStats()
         SstpEngineState.lastDetail.value = null
@@ -215,9 +218,29 @@ class SstpPlugin @Inject constructor(
             // а не физическая сеть тормозит.
             dlog("startHealthCheck: delay(3000) elapsed, entering ping loop")
             repeat(5) { attempt ->
+                // DIAGNOSTIC: withTimeoutOrNull(8_000) в fetchPublicIp() уже стоит,
+                // но реальная задержка в логе всё равно ~60+ секунд вместо
+                // ожидаемых ~8.5 — значит либо она физически не там, где мы
+                // думали, либо есть что-то неочевидное в поведении корутин
+                // именно здесь. Меряем КАЖДЫЙ вызов explicit-таймстампами по
+                // миллисекундам, а не полагаемся на интервалы между строками
+                // лога — это снимает все вопросы разом.
+                val t0 = System.currentTimeMillis()
                 val pingMs = measurePingOnceMs(host)
+                val t1 = System.currentTimeMillis()
                 val publicIp = if (pingMs != null) fetchPublicIp() else null
-                dlog("health-check attempt ${attempt + 1}/5: pingMs=$pingMs publicIp=$publicIp")
+                val t2 = System.currentTimeMillis()
+                val externalPingMs = measurePingOnceMs("1.1.1.1")
+                val t3 = System.currentTimeMillis()
+                // DIAGNOSTIC: отдельно проверяем, реально ли ДОСТИЖИМ сам DNS-
+                // сервер через туннель (не только "настроен ли" — настроен он,
+                // мы это уже подтвердили по IPTerminal-логу) — это разделяет
+                // "DNS-сервер физически недоступен" от "маршрутизация вообще не
+                // работает" от "работает всё, кроме крупных пакетов (MTU)".
+                val dnsServerPingMs = currentDnsServer?.let { measurePingOnceMs(it) }
+                val t4 = System.currentTimeMillis()
+                dlog("health-check attempt ${attempt + 1}/5: pingMs=$pingMs publicIp=$publicIp externalIpPingMs=$externalPingMs dnsServerPingMs=$dnsServerPingMs " +
+                    "[timing: measurePingOnceMs=${t1 - t0}ms fetchPublicIp=${t2 - t1}ms externalPing=${t3 - t2}ms dnsServerPing=${t4 - t3}ms]")
                 // ВАЖНО: measurePingOnceMs() внутри делает InetAddress.isReachable() —
                 // это БЛОКИРУЮЩИЙ вызов, отмену корутины (healthCheckJob.cancel(),
                 // см. RawState.DISCONNECTED выше) он не прерывает, отменённость
@@ -272,17 +295,30 @@ class SstpPlugin @Inject constructor(
     }.getOrNull()
 
     private suspend fun fetchPublicIp(): String? = runCatching {
-        // DIAGNOSTIC/FIX: по логу — ping отрабатывал за ~40 мс, а следующая
-        // строка лога (уже включающая и pingMs, И publicIp) появлялась только
-        // через ~60 СЕКУНД. У URL(...).openStream() ниже не было вообще
-        // никакого таймаута (по умолчанию — 0, т.е. ждать бесконечно/пока не
-        // сработает таймаут самого TCP-стека ОС, который может быть очень
-        // большим) — именно тут и терялось время, а не в самом пинге.
-        // withTimeoutOrNull режет ожидание жёстко, независимо от того, что
-        // именно внутри зависло (DNS, TCP-коннект или чтение ответа).
-        withTimeoutOrNull(8_000) {
-            withContext(Dispatchers.IO) {
-                URL("https://api.ipify.org").openStream().bufferedReader().use { it.readText().trim() }
+        // FIX v2: withTimeoutOrNull САМ ПО СЕБЕ здесь недостаточен — он
+        // перестаёт ЖДАТЬ результат через 8 секунд, но НЕ убивает и не
+        // прерывает уже запущенный блокирующий вызов URL.openStream() —
+        // поток на Dispatchers.IO как был занят этим вызовом, так и остаётся
+        // занят (возможно, навсегда, если сокет реально завис без ответа).
+        // При множестве повторных попыток подключения в рамках одного и того
+        // же процесса приложения такие "зависшие" потоки со временем могли
+        // накопиться и вытеснить весь (ограниченный по размеру) пул
+        // Dispatchers.IO — тогда уже СЛЕДУЮЩИЙ вызов встаёт в очередь просто
+        // на free-поток, и это ожидание никаким withTimeoutOrNull не
+        // покрывается (таймер стартует, когда код УЖЕ начал выполняться, а
+        // не когда он встал в очередь на диспетчер). Настоящий фикс — таймаут
+        // НА САМОМ СОЕДИНЕНИИ (setConnectTimeout/setReadTimeout): тогда сам
+        // блокирующий вызов гарантированно кинет SocketTimeoutException и
+        // реально освободит поток, а не просто перестанет быть интересен
+        // вызывающему коду.
+        withContext(Dispatchers.IO) {
+            val connection = URL("https://api.ipify.org").openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 5_000
+            connection.readTimeout = 5_000
+            try {
+                connection.inputStream.bufferedReader().use { it.readText().trim() }
+            } finally {
+                connection.disconnect()
             }
         }
     }.getOrNull()
