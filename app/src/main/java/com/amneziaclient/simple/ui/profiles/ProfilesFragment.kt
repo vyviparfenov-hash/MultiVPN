@@ -9,10 +9,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
-import android.widget.AutoCompleteTextView
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Spinner
+import android.widget.TextView
 import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -608,8 +609,7 @@ class ProfilesFragment : Fragment() {
             "username" to "Имя пользователя",
             "password" to "Пароль",
             "cert" to "Сертификат сервера (.pem/.crt/.der как текст, необязательно — для самоподписанных серверов)",
-            "insecure" to "Не проверять совпадение имени хоста (можете оставить поле пустым)",
-            "dns" to "Свой DNS-сервер (необязательно — если сервер сам не присылает DNS, ресурсы по именам работать не будут без этого)"
+            "insecure" to "Не проверять совпадение имени хоста (можете оставить поле пустым)"
         )
         else -> listOf("name" to "Название профиля")
     }
@@ -623,6 +623,10 @@ class ProfilesFragment : Fragment() {
     ) {
         val fieldKeys = manualFieldsFor(plugin.protocol)
         val editTexts = LinkedHashMap<String, EditText>()
+        // "insecure" (SSTP) хранится отдельно от editTexts — Spinner НЕ
+        // наследуется от EditText, поэтому не может лежать в той же карте.
+        // Собираем оба набора вместе при сохранении (ниже).
+        val spinners = LinkedHashMap<String, Spinner>()
 
         val container = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
@@ -630,64 +634,46 @@ class ProfilesFragment : Fragment() {
             setPadding(padding, padding / 2, padding, padding / 2)
         }
         fieldKeys.forEach { (key, label) ->
-            // "insecure" (SSTP): не текстовое поле, а выпадающий список yes/no —
-            // раньше нужно было вручную печатать "yes"/"no", что было неудобно и
-            // давало опечатки. AutoCompleteTextView — тоже EditText, поэтому карта
-            // editTexts и логика сохранения ниже не меняются. По умолчанию поле
-            // пустое (ничего не выбрано) — downstream-парсинг (SstpPlugin.kt) уже
-            // трактует пустую/любую не-"yes" строку как false ("no"), так что
-            // пустое поле = "no" без дополнительной логики здесь.
-            val editText: EditText = if (key == "insecure") {
-                AutoCompleteTextView(requireContext()).apply {
-                    hint = label
-                    gravity = Gravity.START
-                    inputType = android.text.InputType.TYPE_NULL
-                    keyListener = null
-                    // Разрешаем перенос строк — иначе длинная подсказка/значение
-                    // не переносятся, а обрезаются/уезжают за край экрана
-                    // (однострочный EditText никогда не переносит текст, даже если
-                    // ширина позволяет — это раздельные свойства).
-                    isSingleLine = false
-                    maxLines = 3
-                    val optionsAdapter =
-                        ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, listOf("yes", "no"))
-                    setAdapter(optionsAdapter)
-                    threshold = 0
-                    val openDropdown = {
-                        // ArrayAdapter по умолчанию фильтрует список по уже введённому
-                        // тексту (стандартный autocomplete-фильтр: показывает только
-                        // пункты, начинающиеся с текущего текста) — из-за этого при
-                        // редактировании профиля, где уже стоит, скажем, "yes", список
-                        // показывал только "yes" ("no" не начинается с "yes" —
-                        // отфильтровывался), и переключить значение было невозможно.
-                        // Сбрасываем фильтр перед каждым показом, чтобы были видны оба варианта.
-                        optionsAdapter.filter.filter(null)
-                        // ВАЖНО: showDropDown(), вызванный СРАЗУ внутри обработчика клика,
-                        // конкурирует с ещё не до конца обработанным этим же самым касанием
-                        // — попап открывался и тут же закрывался (видно было как "быстро
-                        // появляется yes/no и сразу закрывается"). post{} откладывает показ
-                        // до следующего кадра, когда текущее touch-событие уже полностью
-                        // обработано — стандартное решение именно для этой гонки.
-                        post { showDropDown() }
-                    }
-                    setOnClickListener { openDropdown() }
-                    setOnFocusChangeListener { _, hasFocus -> if (hasFocus) openDropdown() }
-                    initialFields[key]?.let { setText(it) }
+            if (key == "insecure") {
+                // ПЕРЕДЕЛАНО НА Spinner: AutoCompleteTextView (даже с post{} для
+                // showDropDown() и сбросом фильтра) на части устройств всё равно
+                // открывал и тут же сам закрывал список — эта гонка открытия/
+                // закрытия свойственна самой архитектуре AutoCompleteTextView
+                // (виджет создан для автодополнения ВВОДИМОГО текста, а не для
+                // выбора из фиксированного списка, и мы его туда искусственно
+                // приспосабливали). Spinner — виджет, изначально созданный
+                // именно под "выбрать один вариант из фиксированного списка",
+                // без этой гонки в принципе.
+                val labelView = TextView(requireContext()).apply {
+                    text = label
+                    setPadding(0, (12 * resources.displayMetrics.density).toInt(), 0, 0)
                 }
-            } else {
-                EditText(requireContext()).apply {
-                    hint = label
-                    gravity = Gravity.START
-                    if (key == "cert" || key == "ovpnContent") {
-                        // Многострочное поле — сюда вставляется целиком текст
-                        // .pem-сертификата (IKEv2) или .ovpn-конфига (OpenVPN).
-                        minLines = 3
-                        maxLines = 8
-                        inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                            android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                val options = listOf("", "yes", "no")
+                val optionLabels = listOf("(не выбрано — по умолчанию no)", "yes", "no")
+                val spinner = Spinner(requireContext()).apply {
+                    adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, optionLabels).also {
+                        it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
                     }
-                    initialFields[key]?.let { setText(it) }
+                    val initial = initialFields[key].orEmpty()
+                    setSelection(options.indexOf(initial).coerceAtLeast(0))
                 }
+                container.addView(labelView)
+                container.addView(spinner)
+                spinners[key] = spinner
+                return@forEach
+            }
+            val editText = EditText(requireContext()).apply {
+                hint = label
+                gravity = Gravity.START
+                if (key == "cert" || key == "ovpnContent") {
+                    // Многострочное поле — сюда вставляется целиком текст
+                    // .pem-сертификата (IKEv2) или .ovpn-конфига (OpenVPN).
+                    minLines = 3
+                    maxLines = 8
+                    inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                        android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                }
+                initialFields[key]?.let { setText(it) }
             }
             editTexts[key] = editText
             container.addView(editText)
@@ -698,7 +684,11 @@ class ProfilesFragment : Fragment() {
             .setTitle(if (editingProfileId != null) getString(R.string.dialog_edit_profile_title) else plugin.displayName)
             .setView(scroll)
             .setPositiveButton(R.string.action_save) { dialog, _ ->
-                val fields = editTexts.mapValues { it.value.text.toString() }
+                // options[selectedItemPosition] — реальное значение ("", "yes" или
+                // "no"), а не отображаемый текст ("(не выбрано...)" и т.п.).
+                val spinnerOptions = listOf("", "yes", "no")
+                val fields = editTexts.mapValues { it.value.text.toString() } +
+                    spinners.mapValues { spinnerOptions.getOrElse(it.value.selectedItemPosition) { "" } }
                 if (editingProfileId != null) {
                     viewModel.updateProfileFromEdit(editingProfileId, plugin.protocol, fields)
                 } else {

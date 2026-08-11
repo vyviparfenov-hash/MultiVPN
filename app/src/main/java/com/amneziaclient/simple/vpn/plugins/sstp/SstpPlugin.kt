@@ -239,8 +239,27 @@ class SstpPlugin @Inject constructor(
                 // работает" от "работает всё, кроме крупных пакетов (MTU)".
                 val dnsServerPingMs = currentDnsServer?.let { measurePingOnceMs(it) }
                 val t4 = System.currentTimeMillis()
-                dlog("health-check attempt ${attempt + 1}/5: pingMs=$pingMs publicIp=$publicIp externalIpPingMs=$externalPingMs dnsServerPingMs=$dnsServerPingMs " +
-                    "[timing: measurePingOnceMs=${t1 - t0}ms fetchPublicIp=${t2 - t1}ms externalPing=${t3 - t2}ms dnsServerPing=${t4 - t3}ms]")
+                // DIAGNOSTIC: самый "чистый" тест из всех — голое TCP-соединение
+                // по IP:порту (1.1.1.1:443, Cloudflare, гарантированно принимает
+                // TCP-подключения) в обход DNS, HTTP и TLS-рукопожатия целиком.
+                // isReachable() выше на некоторых Android-версиях сам по себе
+                // падает на TCP-connect как fallback (ICMP обычно недоступен
+                // обычным приложениям без root) — но чтобы не полагаться на
+                // непрозрачную внутреннюю логику, проверяем TCP явно и
+                // однозначно: либо реальное TCP-соединение до внешнего хоста
+                // проходит через туннель, либо нет.
+                val rawTcpConnectMs = runCatching {
+                    val tcpStart = System.currentTimeMillis()
+                    java.net.Socket().use { socket ->
+                        socket.connect(java.net.InetSocketAddress("1.1.1.1", 443), 5_000)
+                    }
+                    System.currentTimeMillis() - tcpStart
+                }.getOrNull()
+                val t5 = System.currentTimeMillis()
+                dlog("health-check attempt ${attempt + 1}/5: pingMs=$pingMs publicIp=$publicIp externalIpPingMs=$externalPingMs " +
+                    "dnsServerPingMs=$dnsServerPingMs rawTcpConnectMs=$rawTcpConnectMs " +
+                    "[timing: measurePingOnceMs=${t1 - t0}ms fetchPublicIp=${t2 - t1}ms externalPing=${t3 - t2}ms " +
+                    "dnsServerPing=${t4 - t3}ms rawTcpConnect=${t5 - t4}ms]")
                 // ВАЖНО: measurePingOnceMs() внутри делает InetAddress.isReachable() —
                 // это БЛОКИРУЮЩИЙ вызов, отмену корутины (healthCheckJob.cancel(),
                 // см. RawState.DISCONNECTED выше) он не прерывает, отменённость
