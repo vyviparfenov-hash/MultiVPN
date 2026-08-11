@@ -84,9 +84,10 @@ object SstpBridge {
         password: String,
         insecure: Boolean,
         certPem: String?,
+        dns: String?,
         selectedApps: Set<String>
     ): String? {
-        dlog("connect() called: host=$host port=$port username=$username insecure=$insecure certProvided=${certPem != null} selectedApps=${selectedApps.size}")
+        dlog("connect() called: host=$host port=$port username=$username insecure=$insecure certProvided=${certPem != null} dnsProvided=${!dns.isNullOrBlank()} selectedApps=${selectedApps.size}")
         ensureObserving(context)
         try {
             val prefs = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
@@ -125,16 +126,6 @@ object SstpBridge {
                     .onFailure { dloge("Failed to write server cert file", it) }
                 setBooleanPrefValue(true, OscPrefKey.SSL_DO_SPECIFY_CERT, prefs)
                 setStringPrefValue(certDir.absolutePath, OscPrefKey.SSL_CERT_DIR, prefs)
-                // PATCH: библиотека (см. kittoku check.kt) отказывает в конфиге, если
-                // SSL_DO_SPECIFY_CERT=true, а SSL_VERSION остался на "DEFAULT" (именно
-                // так после importProfile(null, prefs) выше) — "Specifying trusted
-                // certificates needs SSL version to be specified". Причина не
-                // косметическая: SSLTerminal.kt при заданном сертификате вызывает
-                // SSLContext.getInstance(selectedVersion) напрямую, т.е. "DEFAULT" туда
-                // передать нельзя в принципе. TLSv1.2 — совместим и с Android (все
-                // актуальные API-уровни), и с типичными SSTP-серверами (Windows RRAS,
-                // MikroTik и т.п.); TLSv1.3 поддерживается ими не всегда.
-                setStringPrefValue("TLSv1.2", OscPrefKey.SSL_VERSION, prefs)
                 dlog("Custom server cert written to ${certFile.absolutePath}, SSL_CERT_DIR set")
             }
 
@@ -144,6 +135,19 @@ object SstpBridge {
                 // Своё приложение — всегда в списке (см. остальные протоколы),
                 // иначе наши же диагностические запросы идут мимо VPN.
                 setSetPrefValue(selectedApps + context.packageName, OscPrefKey.ROUTE_SELECTED_APPS, prefs)
+            }
+
+            // Некоторые SSTP-сервера не присылают DNS через IPCP вообще (движок
+            // тогда просто не добавляет НИ ОДНОГО DNS-сервера на интерфейс —
+            // без ошибки, интерфейс поднимается штатно, просто резолвинг имён
+            // не работает вообще ни для чего, включая внутренние ресурсы). У
+            // остальных протоколов в этом приложении (WireGuard/AmneziaWG) есть
+            // поле DNS — у SSTP раньше не было вообще никакого способа задать
+            // его вручную на такой случай.
+            if (!dns.isNullOrBlank()) {
+                setBooleanPrefValue(true, OscPrefKey.DNS_DO_USE_CUSTOM_SERVER, prefs)
+                setStringPrefValue(dns, OscPrefKey.DNS_CUSTOM_ADDRESS, prefs)
+                dlog("Custom DNS server set: $dns")
             }
 
             val checkError = checkPreferences(prefs)

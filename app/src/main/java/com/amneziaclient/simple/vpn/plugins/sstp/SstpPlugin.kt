@@ -127,6 +127,7 @@ class SstpPlugin @Inject constructor(
         val password = fields["password"].orEmpty()
         val insecure = fields["insecure"]?.trim()?.lowercase() in setOf("yes", "true", "1", "да")
         val cert = fields["cert"]?.trim().orEmpty()
+        val dns = fields["dns"]?.trim().orEmpty()
 
         val configBlob = JSONObject().apply {
             put("server", server)
@@ -135,6 +136,7 @@ class SstpPlugin @Inject constructor(
             put("password", password)
             put("insecure", insecure)
             if (cert.isNotBlank()) put("cert", cert)
+            if (dns.isNotBlank()) put("dns", dns)
         }.toString()
 
         return ImportResult.Success(
@@ -179,6 +181,7 @@ class SstpPlugin @Inject constructor(
             password = json.optString("password"),
             insecure = json.optBoolean("insecure", false),
             certPem = json.optString("cert").ifBlank { null },
+            dns = json.optString("dns").ifBlank { null },
             selectedApps = selectedApps
         )
         if (error != null) {
@@ -202,6 +205,15 @@ class SstpPlugin @Inject constructor(
         healthCheckJob = scope.launch {
             dlog("startHealthCheck: waiting 3s before first ping attempt to $host")
             delay(3_000) // дать время на PPP/SSTP-согласование
+            // DIAGNOSTIC: в реальном логе между "waiting 3s" и первым успешным
+            // "attempt 1/5" проходило 26-66 секунд вместо ожидаемых ~3 — при
+            // этом сам pingMs (время именно getByName+isReachable) оказывался
+            // быстрым (39-73 мс), т.е. проблема НЕ в самой сетевой проверке.
+            // Это сообщение покажет, сколько РЕАЛЬНО прошло именно на delay(3000)
+            // — если тут тоже будет ~60 секунд вместо 3, значит корутина не
+            // выполняется вовремя (Dispatchers.Default чем-то занят/голодает),
+            // а не физическая сеть тормозит.
+            dlog("startHealthCheck: delay(3000) elapsed, entering ping loop")
             repeat(5) { attempt ->
                 val pingMs = measurePingOnceMs(host)
                 val publicIp = if (pingMs != null) fetchPublicIp() else null

@@ -336,6 +336,7 @@ class MainViewModel @Inject constructor(
                     fields["password"] = json.optString("password")
                     fields["insecure"] = if (json.optBoolean("insecure", false)) "yes" else "no"
                     fields["cert"] = json.optString("cert")
+                    fields["dns"] = json.optString("dns")
                 }
                 fields
             }
