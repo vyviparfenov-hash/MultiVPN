@@ -217,6 +217,18 @@ class SstpPlugin @Inject constructor(
             // выполняется вовремя (Dispatchers.Default чем-то занят/голодает),
             // а не физическая сеть тормозит.
             dlog("startHealthCheck: delay(3000) elapsed, entering ping loop")
+            // DIAGNOSTIC: на IKEv2 мы уже ловили точно такую же картину ("IP
+            // показывает домашний") — и там причиной было то, что процесс
+            // приложения по умолчанию НЕ маршрутизировался через собственный
+            // VPN (strongSwan сам себя исключал ради CRL-фетчера). У kittoku
+            // такого явного самоисключения в коде нет (protect() вызывается
+            // только на конкретном control-сокете SSTP, не на всё приложение),
+            // но мы никогда напрямую не проверяли, действительно ли трафик
+            // ИМЕННО этого health-check идёт через туннель, или тоже в обход
+            // него — а сейчас на своём сервере видим ту же картину (домашний
+            // IP), так что стоит проверить, а не полагаться на "теоретически
+            // должно быть иначе".
+            logActiveNetworkInfo("before health-check ping loop")
             repeat(5) { attempt ->
                 // DIAGNOSTIC: withTimeoutOrNull(8_000) в fetchPublicIp() уже стоит,
                 // но реальная задержка в логе всё равно ~60+ секунд вместо
@@ -297,6 +309,29 @@ class SstpPlugin @Inject constructor(
                 ensureActive() // см. комментарий в startHealthCheck() — та же причина
                 if (SstpEngineState.state.value != PluginConnectionState.CONNECTED) return@collect
                 SstpEngineState.stats.value = SstpEngineState.stats.value.copy(pingMillis = pingMs)
+            }
+        }
+    }
+
+    private fun logActiveNetworkInfo(momentLabel: String) {
+        runCatching {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val active = cm.activeNetwork
+            val caps = active?.let { cm.getNetworkCapabilities(it) }
+            val linkProps = active?.let { cm.getLinkProperties(it) }
+            val message = "Active network ($momentLabel): network=$active " +
+                "hasVpnTransport=${caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)} " +
+                "hasWifiTransport=${caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)} " +
+                "hasCellularTransport=${caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR)} " +
+                "interfaceName=${linkProps?.interfaceName} " +
+                "dnsServers=${linkProps?.dnsServers}"
+            dlog(message)
+            cm.allNetworks.forEach { net ->
+                val c = cm.getNetworkCapabilities(net)
+                val lp = cm.getLinkProperties(net)
+                val line = "  network=$net isVpn=${c?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)} " +
+                    "iface=${lp?.interfaceName}"
+                dlog(line)
             }
         }
     }
