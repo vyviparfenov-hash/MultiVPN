@@ -1,1 +1,0 @@
-An easy to use IKEv2/IPsec-based VPN client.
