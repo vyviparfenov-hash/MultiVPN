@@ -105,7 +105,7 @@
     <string name="settings_language_subtitle">Langue de l\'interface de l\'application</string>
     <string name="settings_language_picker_title">Choisir une langue</string>
     <string name="settings_battery_title">Optimisation de la batterie</string>
-    <string name="settings_battery_subtitle">Excluez l'application de l'optimisation de la batterie pour une connexion VPN stable et sans interruption</string>
+    <string name="settings_battery_subtitle">Excluez l\'application de l\'optimisation de la batterie pour une connexion VPN stable et sans interruption</string>
     <string name="settings_battery_action_disable">Désactiver</string>
     <string name="settings_battery_status_granted">Désactivée — tout va bien</string>
     <string name="settings_about_title">À propos de l\'application</string>
