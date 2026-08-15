@@ -110,7 +110,7 @@ class SettingsFragment : Fragment() {
      *  было временно снять его перед программной установкой isChecked в
      *  refreshBatteryOptimizationState() и не словить бесконечный цикл
      *  вызовов самого себя. */
-    private val batteryCheckedChangeListener =
+    private val batteryCheckedChangeListener: android.widget.CompoundButton.OnCheckedChangeListener =
         android.widget.CompoundButton.OnCheckedChangeListener { _, isChecked ->
             val actuallyExempted = isIgnoringBatteryOptimizations()
             if (isChecked && !actuallyExempted) {
