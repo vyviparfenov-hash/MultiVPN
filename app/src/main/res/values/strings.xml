@@ -90,7 +90,8 @@
     <string name="hint_search_profiles">Search profiles</string>
 
     <!-- Apps -->
-    <string name="apps_screen_title">Tunneling apps</string>
+    <string name="apps_screen_title_line1">Tunneling</string>
+    <string name="apps_screen_title_line2">apps</string>
     <string name="apps_selection_saved">List saved</string>
 
     <!-- Connection stats (real data) -->
@@ -105,9 +106,12 @@
     <string name="settings_language_subtitle">App interface language</string>
     <string name="settings_language_picker_title">Choose a language</string>
     <string name="settings_battery_title">Battery optimization</string>
-    <string name="settings_battery_subtitle">Exclude the app from battery optimization for a stable, uninterrupted VPN connection</string>
-    <string name="settings_battery_action_disable">Disable</string>
-    <string name="settings_battery_status_granted">Disabled — good</string>
+    <string name="settings_battery_subtitle_off">So the app can run in the background and the VPN connection stays stable</string>
+    <string name="settings_battery_subtitle_on">The app runs in the background. The VPN connection is protected from system restrictions</string>
+    <string name="settings_battery_status_off_hint">For a stable VPN connection, it is recommended to disable battery optimization</string>
+    <string name="settings_battery_status_on_hint">Battery optimization is disabled
+VPN connection is stable</string>
+    <string name="settings_battery_action_configure">Configure</string>
     <string name="settings_about_title">About the app</string>
     <string name="settings_version_format">Version %1$s</string>
 

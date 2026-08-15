@@ -48,9 +48,12 @@
     <string name="settings_language_subtitle">Язык интерфейса приложения</string>
     <string name="settings_language_picker_title">Выберите язык</string>
     <string name="settings_battery_title">Оптимизация батареи</string>
-    <string name="settings_battery_subtitle">Исключите приложение из оптимизации батареи для стабильного, без разрывов, VPN-соединения</string>
-    <string name="settings_battery_action_disable">Отключить</string>
-    <string name="settings_battery_status_granted">Отключена — всё хорошо</string>
+    <string name="settings_battery_subtitle_off">Чтобы приложение работало в фоновом режиме и VPN-соединение было стабильным</string>
+    <string name="settings_battery_subtitle_on">Приложение работает в фоновом режиме. VPN-соединение защищено от ограничений системы</string>
+    <string name="settings_battery_status_off_hint">Для стабильной работы VPN рекомендуется отключить оптимизацию батареи</string>
+    <string name="settings_battery_status_on_hint">Оптимизация батареи отключена
+VPN-соединение стабильно</string>
+    <string name="settings_battery_action_configure">Настроить</string>
     <string name="dialog_create_profile_title">Создать профиль</string>
     <string name="profile_status_connected">Подключено</string>
     <string name="profile_status_ready">Готов</string>
@@ -79,7 +82,8 @@
     <string name="nav_home">Главная</string>
     <string name="nav_profiles">Профили</string>
     <string name="nav_apps">Приложения</string>
-    <string name="apps_screen_title">Приложения для туннелирования</string>
+    <string name="apps_screen_title_line1">Приложения</string>
+    <string name="apps_screen_title_line2">для туннелирования</string>
     <string name="nav_settings">Настройки</string>
 
     <!-- Главный экран -->

@@ -90,7 +90,8 @@
     <string name="hint_search_profiles">پروفائلز تلاش کریں</string>
 
     <!-- ایپس -->
-    <string name="apps_screen_title">ٹنلنگ ایپس</string>
+    <string name="apps_screen_title_line1">ٹنلنگ</string>
+    <string name="apps_screen_title_line2">ایپس</string>
     <string name="apps_selection_saved">فہرست محفوظ ہو گئی</string>
 
     <!-- کنکشن اعداد و شمار (حقیقی ڈیٹا) -->
@@ -105,9 +106,12 @@
     <string name="settings_language_subtitle">ایپ انٹرفیس کی زبان</string>
     <string name="settings_language_picker_title">زبان منتخب کریں</string>
     <string name="settings_battery_title">بیٹری کی اصلاح</string>
-    <string name="settings_battery_subtitle">مستحکم، بلاتعطل VPN کنکشن کے لیے ایپ کو بیٹری کی اصلاح سے خارج کریں</string>
-    <string name="settings_battery_action_disable">غیر فعال کریں</string>
-    <string name="settings_battery_status_granted">غیر فعال ہے — سب ٹھیک ہے</string>
+    <string name="settings_battery_subtitle_off">تاکہ ایپ بیک گراؤنڈ میں چل سکے اور VPN کنکشن مستحکم رہے</string>
+    <string name="settings_battery_subtitle_on">ایپ بیک گراؤنڈ میں چل رہی ہے۔ VPN کنکشن سسٹم کی پابندیوں سے محفوظ ہے</string>
+    <string name="settings_battery_status_off_hint">مستحکم VPN کنکشن کے لیے بیٹری کی اصلاح کو غیر فعال کرنے کی سفارش کی جاتی ہے</string>
+    <string name="settings_battery_status_on_hint">بیٹری کی اصلاح غیر فعال ہے
+VPN کنکشن مستحکم ہے</string>
+    <string name="settings_battery_action_configure">ترتیب دیں</string>
     <string name="settings_about_title">ایپ کے بارے میں</string>
     <string name="settings_version_format">ورژن %1$s</string>
 

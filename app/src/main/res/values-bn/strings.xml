@@ -90,7 +90,8 @@
     <string name="hint_search_profiles">প্রোফাইল খুঁজুন</string>
 
     <!-- অ্যাপ -->
-    <string name="apps_screen_title">টানেলিং অ্যাপ</string>
+    <string name="apps_screen_title_line1">টানেলিং</string>
+    <string name="apps_screen_title_line2">অ্যাপ</string>
     <string name="apps_selection_saved">তালিকা সংরক্ষিত হয়েছে</string>
 
     <!-- সংযোগ পরিসংখ্যান (প্রকৃত তথ্য) -->
@@ -105,9 +106,12 @@
     <string name="settings_language_subtitle">অ্যাপ ইন্টারফেসের ভাষা</string>
     <string name="settings_language_picker_title">ভাষা নির্বাচন করুন</string>
     <string name="settings_battery_title">ব্যাটারি অপ্টিমাইজেশন</string>
-    <string name="settings_battery_subtitle">স্থিতিশীল, বিঘ্নহীন VPN সংযোগের জন্য অ্যাপটিকে ব্যাটারি অপ্টিমাইজেশন থেকে বাদ দিন</string>
-    <string name="settings_battery_action_disable">বন্ধ করুন</string>
-    <string name="settings_battery_status_granted">বন্ধ আছে — সব ঠিক আছে</string>
+    <string name="settings_battery_subtitle_off">যাতে অ্যাপটি ব্যাকগ্রাউন্ডে চলতে পারে এবং VPN সংযোগ স্থিতিশীল থাকে</string>
+    <string name="settings_battery_subtitle_on">অ্যাপটি ব্যাকগ্রাউন্ডে চলছে। VPN সংযোগ সিস্টেমের বিধিনিষেধ থেকে সুরক্ষিত</string>
+    <string name="settings_battery_status_off_hint">স্থিতিশীল VPN সংযোগের জন্য ব্যাটারি অপ্টিমাইজেশন বন্ধ করার পরামর্শ দেওয়া হচ্ছে</string>
+    <string name="settings_battery_status_on_hint">ব্যাটারি অপ্টিমাইজেশন বন্ধ আছে
+VPN সংযোগ স্থিতিশীল</string>
+    <string name="settings_battery_action_configure">সেট করুন</string>
     <string name="settings_about_title">অ্যাপ সম্পর্কে</string>
     <string name="settings_version_format">সংস্করণ %1$s</string>
 

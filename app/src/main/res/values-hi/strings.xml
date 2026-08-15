@@ -90,7 +90,8 @@
     <string name="hint_search_profiles">प्रोफ़ाइलें खोजें</string>
 
     <!-- ऐप्स -->
-    <string name="apps_screen_title">टनलिंग ऐप्स</string>
+    <string name="apps_screen_title_line1">टनलिंग</string>
+    <string name="apps_screen_title_line2">ऐप्स</string>
     <string name="apps_selection_saved">सूची सहेजी गई</string>
 
     <!-- कनेक्शन आंकड़े (वास्तविक डेटा) -->
@@ -105,9 +106,12 @@
     <string name="settings_language_subtitle">ऐप इंटरफ़ेस की भाषा</string>
     <string name="settings_language_picker_title">भाषा चुनें</string>
     <string name="settings_battery_title">बैटरी अनुकूलन</string>
-    <string name="settings_battery_subtitle">स्थिर, बिना रुकावट वाले VPN कनेक्शन के लिए ऐप को बैटरी अनुकूलन से बाहर रखें</string>
-    <string name="settings_battery_action_disable">बंद करें</string>
-    <string name="settings_battery_status_granted">बंद है — सब ठीक है</string>
+    <string name="settings_battery_subtitle_off">ताकि ऐप बैकग्राउंड में चल सके और VPN कनेक्शन स्थिर रहे</string>
+    <string name="settings_battery_subtitle_on">ऐप बैकग्राउंड में चल रहा है। VPN कनेक्शन सिस्टम की पाबंदियों से सुरक्षित है</string>
+    <string name="settings_battery_status_off_hint">स्थिर VPN कनेक्शन के लिए बैटरी अनुकूलन बंद करने की सलाह दी जाती है</string>
+    <string name="settings_battery_status_on_hint">बैटरी अनुकूलन बंद है
+VPN कनेक्शन स्थिर है</string>
+    <string name="settings_battery_action_configure">सेट करें</string>
     <string name="settings_about_title">ऐप के बारे में</string>
     <string name="settings_version_format">संस्करण %1$s</string>
 
