@@ -1,119 +1,127 @@
 <resources>
     <string name="multivpn_app_name">MultiVPN</string>
 
-    <string name="status_config_not_loaded">Конфигурация не загружена</string>
-    <string name="status_config_loaded">Конфигурация загружена</string>
+    <string name="status_config_not_loaded">Configuration not loaded</string>
+    <string name="status_config_loaded">Configuration loaded</string>
 
-    <string name="button_start">СТАРТ</string>
-    <string name="button_stop">СТОП</string>
-    <string name="button_connecting">Подключение…</string>
-    <string name="button_cancel_connecting">Отменить подключение</string>
-    <string name="button_disconnecting">Отключение…</string>
-    <string name="button_load_config">Загрузить конфигурацию</string>
-    <string name="button_load_config_subtitle">Импорт из .conf, .ovpn, .json и др.</string>
-    <string name="button_manual_entry">Ввести вручную</string>
-    <string name="button_manual_entry_subtitle">Создать профиль вручную</string>
-    <string name="button_select_apps">Выбрать приложения</string>
-    <string name="button_profiles">Профили</string>
-    <string name="selected_apps_count">Выбрано приложений: %1$d</string>
-    <string name="active_profile_label">Профиль: %1$s</string>
-    <string name="no_active_profile">Профиль не выбран</string>
+    <string name="button_start">START</string>
+    <string name="button_stop">STOP</string>
+    <string name="button_connecting">Connecting…</string>
+    <string name="button_cancel_connecting">Cancel connection</string>
+    <string name="button_disconnecting">Disconnecting…</string>
+    <string name="button_load_config">Load configuration</string>
+    <string name="button_load_config_subtitle">Import from .conf, .ovpn, .json, etc.</string>
+    <string name="button_manual_entry">Enter manually</string>
+    <string name="button_manual_entry_subtitle">Create a profile manually</string>
+    <string name="button_select_apps">Select apps</string>
+    <string name="button_profiles">Profiles</string>
+    <string name="selected_apps_count">Apps selected: %1$d</string>
+    <string name="active_profile_label">Profile: %1$s</string>
+    <string name="no_active_profile">No profile selected</string>
 
-    <string name="dialog_profile_name_title">Название профиля</string>
-    <string name="dialog_profiles_title">Профили</string>
-    <string name="dialog_choose_protocol_title">Выберите протокол</string>
-    <string name="action_save">Сохранить</string>
-    <string name="action_cancel">Отмена</string>
-    <string name="qr_scan_hint">Наведите камеру на QR-код профиля</string>
-    <string name="button_scan_qr">Сканировать QR-код</string>
-    <string name="button_scan_qr_subtitle">Добавить профиль по QR-коду</string>
-    <string name="dialog_choose_protocol_subtitle">Профиль будет создан для этого протокола</string>
-    <string name="error_qr_unrecognized">Не удалось определить протокол по содержимому QR-кода.</string>
-    <string name="error_camera_permission_denied">Нужен доступ к камере, чтобы сканировать QR-код.</string>
-    <string name="action_close">Закрыть</string>
-    <string name="action_delete_active">Удалить профиль</string>
-    <string name="action_edit">Редактировать</string>
-    <string name="action_export_profile">Экспортировать профиль</string>
-    <string name="action_export_profiles">Экспортировать профили</string>
-    <string name="action_delete_profiles">Удалить профили</string>
-    <string name="confirm_delete_profiles_message">Удалить выбранные профили (%1$d)? Это действие нельзя отменить.</string>
-    <string name="selection_count_format">Выбрано: %1$d</string>
-    <string name="export_profiles_empty">Выберите хотя бы один профиль для экспорта.</string>
-    <string name="export_profiles_success">Профили экспортированы: %1$s</string>
-    <string name="export_profiles_error">Не удалось экспортировать профили.</string>
-    <string name="import_zip_result">Импортировано профилей: %1$d из %2$d</string>
-    <string name="action_more">Ещё</string>
-    <string name="dialog_edit_profile_title">Изменить профиль</string>
-    <string name="dialog_create_profile_title">Создать профиль</string>
-    <string name="profile_status_connected">Подключено</string>
-    <string name="profile_status_ready">Готов</string>
-    <string name="error_no_profiles">Нет сохранённых профилей — сначала загрузите конфигурацию</string>
-    <string name="error_no_protocols_available">Нет доступных для ручного ввода протоколов</string>
+    <string name="dialog_profile_name_title">Profile name</string>
+    <string name="dialog_profiles_title">Profiles</string>
+    <string name="dialog_choose_protocol_title">Choose a protocol</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="qr_scan_hint">Point the camera at the profile\'s QR code</string>
+    <string name="button_scan_qr">Scan QR code</string>
+    <string name="button_scan_qr_subtitle">Add a profile via QR code</string>
+    <string name="dialog_choose_protocol_subtitle">A profile will be created for this protocol</string>
+    <string name="error_qr_unrecognized">Could not determine the protocol from the QR code content.</string>
+    <string name="error_camera_permission_denied">Camera access is required to scan a QR code.</string>
+    <string name="action_close">Close</string>
+    <string name="action_delete_active">Delete profile</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_export_profile">Export profile</string>
+    <string name="action_export_profiles">Export profiles</string>
+    <string name="action_delete_profiles">Delete profiles</string>
+    <string name="confirm_delete_profiles_message">Delete the selected profiles (%1$d)? This action cannot be undone.</string>
+    <string name="selection_count_format">Selected: %1$d</string>
+    <string name="export_profiles_empty">Select at least one profile to export.</string>
+    <string name="export_profiles_success">Profiles exported: %1$s</string>
+    <string name="export_profiles_error">Failed to export profiles.</string>
+    <string name="import_zip_result">Profiles imported: %1$d of %2$d</string>
+    <string name="action_more">More</string>
+    <string name="dialog_create_profile_title">Create profile</string>
+    <string name="dialog_edit_profile_title">Edit profile</string>
+    <string name="profile_status_connected">Connected</string>
+    <string name="profile_status_ready">Ready</string>
+    <string name="error_no_profiles">No saved profiles yet — load a configuration first</string>
+    <string name="error_no_protocols_available">No protocols available for manual entry</string>
 
-    <string name="hint_search_apps">Поиск приложений</string>
-    <string name="button_select_all">Выбрать все</string>
-    <string name="button_deselect_all">Снять все</string>
-    <string name="button_apply">Применить</string>
+    <string name="hint_search_apps">Search apps</string>
+    <string name="button_select_all">Select all</string>
+    <string name="button_deselect_all">Deselect all</string>
+    <string name="button_apply">Apply</string>
 
-    <string name="vpn_notification_channel_name">VPN-соединение AmneziaWG</string>
-    <string name="notification_vpn_connected">VPN подключён</string>
-    <string name="notification_server_name">Сервер: %1$s</string>
-    <string name="notification_disconnect">Отключить</string>
+    <string name="vpn_notification_channel_name">AmneziaWG VPN connection</string>
+    <string name="notification_vpn_connected">VPN connected</string>
+    <string name="notification_server_name">Server: %1$s</string>
+    <string name="notification_disconnect">Disconnect</string>
 
-    <string name="error_config_corrupted">Конфигурация повреждена</string>
-    <string name="error_connect_failed">Не удалось подключиться</string>
-    <string name="error_vpn_already_running">VPN уже работает</string>
-    <string name="error_no_vpn_access">Нет доступа к VPN</string>
-    <string name="error_import">Ошибка импорта</string>
-    <string name="error_file_read">Ошибка чтения файла</string>
-    <string name="error_config_not_loaded">Сначала загрузите конфигурацию</string>
+    <string name="error_config_corrupted">Configuration is corrupted</string>
+    <string name="error_connect_failed">Failed to connect</string>
+    <string name="error_vpn_already_running">VPN is already running</string>
+    <string name="error_no_vpn_access">No access to VPN</string>
+    <string name="error_import">Import error</string>
+    <string name="error_file_read">Error reading file</string>
+    <string name="error_config_not_loaded">Load a configuration first</string>
 
-    <!-- Нижняя навигация -->
-    <string name="nav_home">Главная</string>
-    <string name="nav_profiles">Профили</string>
-    <string name="nav_apps">Приложения</string>
-    <string name="nav_settings">Настройки</string>
+    <!-- Bottom navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_profiles">Profiles</string>
+    <string name="nav_apps">Apps</string>
+    <string name="nav_settings">Settings</string>
 
-    <!-- Главный экран -->
-    <string name="label_active_profile">Текущий профиль</string>
-    <string name="status_connected">● Подключено</string>
-    <string name="status_connecting">Подключение…</string>
-    <string name="status_disconnecting">Отключение…</string>
-    <string name="status_error">Ошибка подключения</string>
-    <string name="split_tunnel_mode_selected">Режим: только выбранные приложения</string>
-    <string name="split_tunnel_mode_all">Режим: все приложения</string>
-    <string name="selected_apps_count_hint">Выбрано приложений: %1$d — нажмите, чтобы изменить</string>
+    <!-- Home screen -->
+    <string name="label_active_profile">Current profile</string>
+    <string name="status_connected">● Connected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_disconnecting">Disconnecting…</string>
+    <string name="status_error">Connection error</string>
+    <string name="split_tunnel_mode_selected">Mode: selected apps only</string>
+    <string name="split_tunnel_mode_all">Mode: all apps</string>
+    <string name="selected_apps_count_hint">Apps selected: %1$d — tap to change</string>
 
-    <!-- Профили -->
-    <string name="add_profile_title">Добавить VPN</string>
-    <string name="profiles_empty_hint">Пока нет сохранённых профилей.\nНажмите +, чтобы добавить первый.</string>
-    <string name="hint_search_profiles">Поиск профилей</string>
+    <!-- Profiles -->
+    <string name="add_profile_title">Add VPN</string>
+    <string name="profiles_empty_hint">No saved profiles yet.\nTap + to add your first one.</string>
+    <string name="hint_search_profiles">Search profiles</string>
 
-    <!-- Приложения -->
-    <string name="apps_selection_saved">Список сохранён</string>
+    <!-- Apps -->
+    <string name="apps_screen_title">Tunneling apps</string>
+    <string name="apps_selection_saved">List saved</string>
 
-    <!-- Статистика подключения (реальные данные) -->
-    <string name="stats_label_ip">IP-адрес</string>
-    <string name="stats_label_ping">Пинг</string>
-    <string name="stats_label_received">Получено</string>
-    <string name="stats_label_sent">Отправлено</string>
+    <!-- Connection stats (real data) -->
+    <string name="stats_label_ip">IP address</string>
+    <string name="stats_label_ping">Ping</string>
+    <string name="stats_label_received">Received</string>
+    <string name="stats_label_sent">Sent</string>
     <string name="stats_ping_value_format">%1$d ms</string>
 
-    <!-- Настройки -->
-    <string name="settings_about_title">О приложении</string>
-    <string name="settings_version_format">Версия %1$s</string>
+    <!-- Settings -->
+    <string name="settings_language_title">Language</string>
+    <string name="settings_language_subtitle">App interface language</string>
+    <string name="settings_language_picker_title">Choose a language</string>
+    <string name="settings_battery_title">Battery optimization</string>
+    <string name="settings_battery_subtitle">Exclude the app from battery optimization for a stable, uninterrupted VPN connection</string>
+    <string name="settings_battery_action_disable">Disable</string>
+    <string name="settings_battery_status_granted">Disabled — good</string>
+    <string name="settings_about_title">About the app</string>
+    <string name="settings_version_format">Version %1$s</string>
 
-    <string name="settings_autoconnect_open_title">Автозапуск</string>
-    <string name="settings_autoconnect_open_subtitle">Подключать VPN автоматически при открытии приложения</string>
-    <string name="settings_connection_logging_title">Включить логирование подключения</string>
-    <string name="settings_connection_logging_subtitle">Подробный лог для диагностики проблем с подключением</string>
-    <string name="settings_connection_logging_export_hint">Лог можно экспортировать в формате .zip в папку «Загрузки» — туда попадёт и собственный подробный лог подключений, и полный снимок логов самого приложения. Логирование автоматически выключится через 24 часа, если вы забудете его выключить.</string>
-    <string name="button_export_log">Экспортировать</string>
-    <string name="export_log_success">Лог сохранён: %1$s</string>
-    <string name="export_log_empty">Пока нечего экспортировать — лог пуст.</string>
-    <string name="export_log_error">Не удалось экспортировать лог.</string>
-    <string name="split_tunnel_unsupported_warning">Текущий протокол (%1$s) не поддерживает выбор приложений — весь трафик всегда идёт через VPN целиком, выбор ниже не будет иметь эффекта.</string>
+    <string name="settings_autoconnect_open_title">Auto-connect</string>
+    <string name="settings_autoconnect_open_subtitle">Connect VPN automatically when the app opens</string>
+    <string name="settings_connection_logging_title">Enable connection logging</string>
+    <string name="settings_connection_logging_subtitle">Detailed log for diagnosing connection issues</string>
+    <string name="settings_connection_logging_export_hint">The log can be exported as a .zip to the "Downloads" folder — it will include both our own detailed connection log and a full snapshot of the app\'s own logs. Logging turns off automatically after 24 hours in case you forget to turn it off.</string>
+    <string name="button_export_log">Export</string>
+    <string name="export_log_success">Log saved: %1$s</string>
+    <string name="export_log_empty">Nothing to export yet — the log is empty.</string>
+    <string name="export_log_error">Failed to export the log.</string>
+    <string name="split_tunnel_unsupported_warning">The current protocol (%1$s) doesn\'t support app selection — all traffic always goes through the VPN, so the selection below has no effect.</string>
 
-    <string name="settings_description_title">О проекте</string>
-    <string name="settings_description_body">MultiVPN — Android-клиент с единым интерфейсом сразу для нескольких VPN-протоколов: AmneziaWG, WireGuard, IKEv2/IPsec, L2TP/IPsec, OpenVPN, VLESS и SSTP. Каждый протокол — отдельный плагин поверх официального или проверенного открытого движка, без собственных реализаций протоколов с нуля. Сплит-туннель (выбор конкретных приложений), несколько профилей одновременно, подробное логирование и экспорт/импорт профилей — доступны там, где это поддерживает конкретный протокол.</string>
+    <string name="settings_description_title">About the project</string>
+    <string name="settings_description_body">MultiVPN is an Android client with a single interface for several VPN protocols at once: AmneziaWG, WireGuard, IKEv2/IPsec, L2TP/IPsec, OpenVPN, VLESS, and SSTP. Each protocol is a separate plugin built on top of an official or well-established open-source engine, with no protocol implementations written from scratch. Split tunneling (choosing specific apps), multiple profiles at once, detailed logging, and profile export/import are available wherever the specific protocol supports them.</string>
 </resources>

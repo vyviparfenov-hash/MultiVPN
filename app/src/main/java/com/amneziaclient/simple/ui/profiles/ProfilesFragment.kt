@@ -33,6 +33,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.amneziaclient.simple.R
 import com.amneziaclient.simple.ui.BottomSheetOption
+import com.amneziaclient.simple.ui.ProtocolUi
 import com.amneziaclient.simple.ui.showOptionsBottomSheet
 import com.amneziaclient.simple.ui.showTopSnackbar
 import com.amneziaclient.simple.data.VpnConnectionState
@@ -674,28 +675,6 @@ class ProfilesFragment : Fragment() {
      *  ProfileListAdapter (там private, поэтому не переиспользуем напрямую,
      *  а дублируем — небольшой, самодостаточный список, минимальный риск при
      *  дублировании против связывания с другим классом). */
-    private fun protocolIconFor(protocol: VpnProtocolType): Int = when (protocol) {
-        VpnProtocolType.AMNEZIAWG -> R.drawable.ic_protocol_amneziawg
-        VpnProtocolType.WIREGUARD -> R.drawable.ic_shield
-        VpnProtocolType.OPENVPN -> R.drawable.ic_protocol_openvpn
-        VpnProtocolType.IKEV2 -> R.drawable.ic_protocol_ikev2
-        VpnProtocolType.L2TP -> R.drawable.ic_protocol_l2tp
-        VpnProtocolType.SSTP -> R.drawable.ic_protocol_sstp
-        VpnProtocolType.SOFTETHER -> R.drawable.ic_protocol_softether
-        VpnProtocolType.VLESS -> R.drawable.ic_protocol_vless
-    }
-
-    private fun protocolColorRes(protocol: VpnProtocolType): Int = when (protocol) {
-        VpnProtocolType.AMNEZIAWG -> R.color.protocol_amneziawg
-        VpnProtocolType.WIREGUARD -> R.color.protocol_wireguard
-        VpnProtocolType.OPENVPN -> R.color.protocol_openvpn
-        VpnProtocolType.IKEV2 -> R.color.protocol_ikev2
-        VpnProtocolType.L2TP -> R.color.protocol_l2tp
-        VpnProtocolType.SSTP -> R.color.protocol_sstp
-        VpnProtocolType.SOFTETHER -> R.color.protocol_softether
-        VpnProtocolType.VLESS -> R.color.protocol_vless
-    }
-
     /** [editingProfileId] == null -> добавление нового профиля;
      *  иначе -> редактирование существующего (тот же id, поля предзаполнены).
      *
@@ -713,11 +692,11 @@ class ProfilesFragment : Fragment() {
         val dialog = BottomSheetDialog(requireContext(), R.style.AppBottomSheetDialog)
 
         sheetView.findViewById<ImageView>(R.id.dialogProtocolIcon).apply {
-            setImageResource(protocolIconFor(plugin.protocol))
+            setImageResource(ProtocolUi.iconRes(plugin.protocol))
         }
         sheetView.findViewById<FrameLayout>(R.id.dialogProtocolIconFrame).apply {
             backgroundTintList = android.content.res.ColorStateList.valueOf(
-                ContextCompat.getColor(requireContext(), protocolColorRes(plugin.protocol))
+                ContextCompat.getColor(requireContext(), ProtocolUi.colorRes(plugin.protocol))
             )
         }
         sheetView.findViewById<TextView>(R.id.dialogProtocolTitle).text = plugin.displayName

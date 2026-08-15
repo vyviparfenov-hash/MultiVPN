@@ -47,6 +47,15 @@
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+            <!-- PATCH: обязательное свойство для типа foregroundServiceType=
+                 "specialUse" с Android 14 (API 34) — без него startForeground()
+                 с этим типом может упасть с исключением на новых версиях
+                 Android. Значение — короткое машинное описание назначения
+                 сервиса (не показывается пользователю), проверяется Google
+                 Play при модерации на соответствие реальному назначению. -->
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn_tunnel" />
         </service>
 
         <service

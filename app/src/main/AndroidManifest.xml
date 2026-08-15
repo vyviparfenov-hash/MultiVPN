@@ -4,7 +4,16 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- PATCH: для запроса исключения из Doze/батарейной оптимизации (см.
+         SettingsFragment.kt) — без него система может периодически
+         приостанавливать сетевую активность в фоне, что для постоянно
+         работающего VPN-туннеля означает регулярные разрывы и
+         переподключения (а каждое переподключение — заново TLS/IKE
+         хендшейк, ощутимая по батарее операция). Сама permission
+         "normal"-уровня, объявления в манифесте достаточно — реальное
+         согласие пользователь всё равно даёт через системный диалог. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -24,6 +33,7 @@
         android:label="@string/multivpn_app_name"
         android:theme="@style/Theme.AmneziaSimple"
         android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
         tools:replace="android:name,android:icon,android:roundIcon,android:label,android:theme">
 
         <activity
@@ -40,7 +50,7 @@
             android:name=".service.AmneziaVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="false"
-            android:foregroundServiceType="dataSync">
+            android:foregroundServiceType="connectedDevice">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
@@ -50,7 +60,7 @@
             android:name=".vpn.plugins.l2tp.L2tpVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="false"
-            android:foregroundServiceType="dataSync">
+            android:foregroundServiceType="connectedDevice">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
@@ -60,7 +70,7 @@
             android:name=".vpn.plugins.openvpn.OpenVpnVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="false"
-            android:foregroundServiceType="dataSync">
+            android:foregroundServiceType="connectedDevice">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
@@ -71,7 +81,7 @@
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="false"
             android:process=":vless"
-            android:foregroundServiceType="dataSync">
+            android:foregroundServiceType="connectedDevice">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
