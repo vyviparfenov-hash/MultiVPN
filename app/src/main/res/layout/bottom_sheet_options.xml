@@ -25,11 +25,24 @@
         android:textStyle="bold"
         tools:text="Добавить VPN" />
 
-    <LinearLayout
-        android:id="@+id/sheetOptionsContainer"
+    <!-- NestedScrollView, а не обычный ScrollView — только он корректно
+         взаимодействует с жестом свайпа самого BottomSheetDialog (передаёт
+         прокрутку диалогу, когда список уже докручен до края, вместо
+         конфликта жестов). Раньше список без обёртки в scroll-контейнер
+         просто обрезался максимальной высотой листа без возможности
+         пролистать — заметно на длинных списках вроде выбора языка (10
+         пунктов), в коротких (протоколы, ~6-8) это не проявлялось, т.к. они
+         помещались в лимит высоты и без прокрутки. -->
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical" />
+        android:layout_height="wrap_content">
+
+        <LinearLayout
+            android:id="@+id/sheetOptionsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </androidx.core.widget.NestedScrollView>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/sheetCancelButton"

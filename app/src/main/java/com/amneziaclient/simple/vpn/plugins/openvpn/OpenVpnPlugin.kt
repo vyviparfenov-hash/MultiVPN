@@ -59,11 +59,19 @@ class OpenVpnPlugin @Inject constructor(
         }
 
         val server = extractRemoteHost(rawText)
+        // PATCH: username/password раньше ВСЕГДА писались пустыми строками —
+        // то, что пользователь вводил в форме (при ручном вводе / при
+        // повторном редактировании профиля), никуда не сохранялось. Для
+        // OpenVPN-серверов с авторизацией по логину/паролю (частый случай у
+        // коммерческих провайдеров) это означало, что подключение всегда
+        // уходило с пустыми учётными данными, независимо от того, что
+        // реально ввёл пользователь.
+        val manualFields = (source as? ImportSource.ManualFields)?.fields
         val json = JSONObject().apply {
             put("ovpnContent", rawText)
             put("server", server ?: "")
-            put("username", "")
-            put("password", "")
+            put("username", manualFields?.get("username")?.trim().orEmpty())
+            put("password", manualFields?.get("password").orEmpty())
         }
 
         return ImportResult.Success(

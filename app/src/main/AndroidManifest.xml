@@ -4,7 +4,6 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <!-- PATCH: для запроса исключения из Doze/батарейной оптимизации (см.
          SettingsFragment.kt) — без него система может периодически
          приостанавливать сетевую активность в фоне, что для постоянно
@@ -50,7 +49,8 @@
             android:name=".service.AmneziaVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice">
+            android:foregroundServiceType="systemExempted"
+            tools:ignore="ForegroundServicePermission">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
@@ -60,7 +60,8 @@
             android:name=".vpn.plugins.l2tp.L2tpVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice">
+            android:foregroundServiceType="systemExempted"
+            tools:ignore="ForegroundServicePermission">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
@@ -70,7 +71,8 @@
             android:name=".vpn.plugins.openvpn.OpenVpnVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice">
+            android:foregroundServiceType="systemExempted"
+            tools:ignore="ForegroundServicePermission">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
@@ -81,7 +83,8 @@
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="false"
             android:process=":vless"
-            android:foregroundServiceType="connectedDevice">
+            android:foregroundServiceType="systemExempted"
+            tools:ignore="ForegroundServicePermission">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>

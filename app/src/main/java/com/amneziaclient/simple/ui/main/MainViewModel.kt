@@ -266,7 +266,16 @@ class MainViewModel @Inject constructor(
         val fields = mutableMapOf("name" to profile.name)
         return when (profile.protocol) {
             VpnProtocolType.AMNEZIAWG, VpnProtocolType.WIREGUARD -> {
-                val keyValueRegex = Regex("""^\s*([A-Za-z]+)\s*=\s*(.*)$""")
+                // PATCH: было [A-Za-z]+ — не допускало цифры в имени ключа,
+                // из-за чего 6 из 9 параметров обфускации AmneziaWG (S1, S2,
+                // H1, H2, H3, H4 — все содержат цифру) тихо терялись при
+                // открытии формы редактирования уже существующего профиля:
+                // поля показывались пустыми, а при сохранении просто
+                // пропускались (buildConfFromManualFields проверяет только
+                // isNotBlank). Движок AmneziaWG считал получившийся урезанный
+                // конфиг повреждённым — отсюда "Конфигурация повреждена"
+                // именно при повторном редактировании, не при первом импорте.
+                val keyValueRegex = Regex("""^\s*([A-Za-z][A-Za-z0-9]*)\s*=\s*(.*)$""")
                 profile.configBlob.lines().forEach { line ->
                     keyValueRegex.find(line)?.let { match ->
                         val (key, value) = match.destructured
