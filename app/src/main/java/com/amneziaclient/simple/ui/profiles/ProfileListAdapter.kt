@@ -13,7 +13,6 @@ import com.amneziaclient.simple.R
 import com.amneziaclient.simple.databinding.ItemProfileBinding
 import com.amneziaclient.simple.vpn.manager.StoredProfile
 import com.amneziaclient.simple.vpn.plugin.VpnProtocolType
-import com.amneziaclient.simple.ui.ProtocolUi
 
 /** [isActive]/[isConnected]/[isSelectionMode]/[isSelected] должны быть
  *  частью сравниваемых DiffUtil'ом данных — иначе при их смене строки не
@@ -43,6 +42,32 @@ class ProfileListAdapter(
             override fun areItemsTheSame(old: ProfileRow, new: ProfileRow) = old.profile.id == new.profile.id
             override fun areContentsTheSame(old: ProfileRow, new: ProfileRow) = old == new
         }
+
+        private fun colorFor(protocol: VpnProtocolType): Int = when (protocol) {
+            VpnProtocolType.AMNEZIAWG -> R.color.protocol_amneziawg
+            VpnProtocolType.WIREGUARD -> R.color.protocol_wireguard
+            VpnProtocolType.OPENVPN -> R.color.protocol_openvpn
+            VpnProtocolType.IKEV2 -> R.color.protocol_ikev2
+            VpnProtocolType.L2TP -> R.color.protocol_l2tp
+            VpnProtocolType.SSTP -> R.color.protocol_sstp
+            VpnProtocolType.SOFTETHER -> R.color.protocol_softether
+            VpnProtocolType.VLESS -> R.color.protocol_vless
+        }
+
+        /** Разные протоколы — разные значки (не только цвет кружка), чтобы
+         *  профили визуально отличались друг от друга с первого взгляда.
+         *  Не копируем чужие товарные знаки — простые обобщённые значки по
+         *  смыслу протокола (ключ, замок, молния и т.д.). */
+        private fun iconFor(protocol: VpnProtocolType): Int = when (protocol) {
+            VpnProtocolType.AMNEZIAWG -> R.drawable.ic_protocol_amneziawg
+            VpnProtocolType.WIREGUARD -> R.drawable.ic_shield
+            VpnProtocolType.OPENVPN -> R.drawable.ic_protocol_openvpn
+            VpnProtocolType.IKEV2 -> R.drawable.ic_protocol_ikev2
+            VpnProtocolType.L2TP -> R.drawable.ic_protocol_l2tp
+            VpnProtocolType.SSTP -> R.drawable.ic_protocol_sstp
+            VpnProtocolType.SOFTETHER -> R.drawable.ic_protocol_softether
+            VpnProtocolType.VLESS -> R.drawable.ic_protocol_vless
+        }
     }
 
     inner class ProfileViewHolder(val binding: ItemProfileBinding) : RecyclerView.ViewHolder(binding.root)
@@ -61,8 +86,8 @@ class ProfileListAdapter(
         holder.binding.textProtocol.text = profile.subtitle.ifBlank { profile.protocol.name }
 
         holder.binding.protocolIconBg.backgroundTintList =
-            ContextCompat.getColorStateList(context, ProtocolUi.colorRes(profile.protocol))
-        holder.binding.protocolIcon.setImageResource(ProtocolUi.iconRes(profile.protocol))
+            ContextCompat.getColorStateList(context, colorFor(profile.protocol))
+        holder.binding.protocolIcon.setImageResource(iconFor(profile.protocol))
 
         // Рамка вокруг карточки — единственный признак "этот профиль сейчас
         // активен" (будет использован при следующем нажатии Старт). Текст
