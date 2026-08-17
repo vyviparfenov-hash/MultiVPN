@@ -90,8 +90,7 @@
     <string name="hint_search_profiles">搜索配置</string>
 
     <!-- 应用 -->
-    <string name="apps_screen_title_line1">隧道</string>
-    <string name="apps_screen_title_line2">应用</string>
+    <string name="apps_screen_title">隧道应用</string>
     <string name="apps_selection_saved">列表已保存</string>
 
     <!-- 连接统计（真实数据） -->
@@ -106,12 +105,9 @@
     <string name="settings_language_subtitle">应用界面语言</string>
     <string name="settings_language_picker_title">选择语言</string>
     <string name="settings_battery_title">电池优化</string>
-    <string name="settings_battery_subtitle_off">让应用在后台运行，保持 VPN 连接稳定</string>
-    <string name="settings_battery_subtitle_on">应用正在后台运行。VPN 连接已受到保护，不受系统限制影响</string>
-    <string name="settings_battery_status_off_hint">为保证 VPN 连接稳定，建议关闭电池优化</string>
-    <string name="settings_battery_status_on_hint">电池优化已关闭
-VPN 连接稳定</string>
-    <string name="settings_battery_action_configure">设置</string>
+    <string name="settings_battery_subtitle">将应用排除在电池优化之外，以获得稳定、不中断的 VPN 连接</string>
+    <string name="settings_battery_action_disable">禁用</string>
+    <string name="settings_battery_status_granted">已禁用 — 一切正常</string>
     <string name="settings_about_title">关于应用</string>
     <string name="settings_version_format">版本 %1$s</string>
 

@@ -1,9 +1,0 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp" android:height="24dp"
-    android:viewportWidth="24" android:viewportHeight="24">
-    <!-- Молния — тот же путь, что уже использовался в ic_battery.xml (для
-         прежнего дизайна "батарея+молния"), тут отдельно, без корпуса
-         батареи — сама иконка-чип для новой карточки. -->
-    <path android:fillColor="@android:color/white"
-        android:pathData="M13,2l-8,11h6l-1,9 8,-12h-6z"/>
-</vector>

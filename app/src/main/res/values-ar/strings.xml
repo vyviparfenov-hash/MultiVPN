@@ -90,8 +90,7 @@
     <string name="hint_search_profiles">البحث في ملفات التعريف</string>
 
     <!-- التطبيقات -->
-    <string name="apps_screen_title_line1">تطبيقات</string>
-    <string name="apps_screen_title_line2">النفق</string>
+    <string name="apps_screen_title">تطبيقات النفق</string>
     <string name="apps_selection_saved">تم حفظ القائمة</string>
 
     <!-- إحصاءات الاتصال (بيانات حقيقية) -->
@@ -106,12 +105,9 @@
     <string name="settings_language_subtitle">لغة واجهة التطبيق</string>
     <string name="settings_language_picker_title">اختر اللغة</string>
     <string name="settings_battery_title">تحسين البطارية</string>
-    <string name="settings_battery_subtitle_off">لكي يعمل التطبيق في الخلفية ويبقى اتصال VPN مستقرًا</string>
-    <string name="settings_battery_subtitle_on">يعمل التطبيق في الخلفية. اتصال VPN محمي من قيود النظام</string>
-    <string name="settings_battery_status_off_hint">للحصول على اتصال VPN مستقر، يُنصح بتعطيل تحسين البطارية</string>
-    <string name="settings_battery_status_on_hint">تم تعطيل تحسين البطارية
-اتصال VPN مستقر</string>
-    <string name="settings_battery_action_configure">إعداد</string>
+    <string name="settings_battery_subtitle">استثنِ التطبيق من تحسين البطارية للحصول على اتصال VPN مستقر وبدون انقطاع</string>
+    <string name="settings_battery_action_disable">تعطيل</string>
+    <string name="settings_battery_status_granted">معطّل — كل شيء على ما يرام</string>
     <string name="settings_about_title">حول التطبيق</string>
     <string name="settings_version_format">الإصدار %1$s</string>
 

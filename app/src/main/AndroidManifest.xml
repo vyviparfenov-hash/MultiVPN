@@ -4,14 +4,6 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- PATCH: для запроса исключения из Doze/батарейной оптимизации (см.
-         SettingsFragment.kt) — без него система может периодически
-         приостанавливать сетевую активность в фоне, что для постоянно
-         работающего VPN-туннеля означает регулярные разрывы и
-         переподключения (а каждое переподключение — заново TLS/IKE
-         хендшейк, ощутимая по батарее операция). Сама permission
-         "normal"-уровня, объявления в манифесте достаточно — реальное
-         согласие пользователь всё равно даёт через системный диалог. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />

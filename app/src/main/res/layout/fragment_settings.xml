@@ -200,113 +200,47 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             android:background="@drawable/bg_card"
-            android:orientation="vertical"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:padding="16dp">
 
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_battery"
+                app:tint="@color/accent_start" />
+
             <LinearLayout
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <FrameLayout
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
-                    android:background="@drawable/bg_icon_chip">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:layout_gravity="center"
-                        android:importantForAccessibility="no"
-                        android:src="@drawable/ic_battery_bolt"
-                        app:tint="@color/accent_start" />
-                </FrameLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="14dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/settings_battery_title"
-                        android:textAppearance="?attr/textAppearanceTitleMedium"
-                        android:textColor="@color/text_primary"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/textBatterySubtitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="@string/settings_battery_subtitle_off"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
-                        android:textColor="@color/text_secondary" />
-                </LinearLayout>
-
-                <!-- SwitchCompat, а не MaterialSwitch (как у остальных
-                     переключателей на этом экране) — только он поддерживает
-                     собственный track-drawable произвольной формы (нужно для
-                     градиента в состоянии "включено", как на макете).
-                     MaterialSwitch ограничен тонированием готовой формы. -->
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/switchBatteryOptimization"
-                    android:layout_width="52dp"
-                    android:layout_height="32dp"
-                    android:thumb="@drawable/switch_thumb_white"
-                    android:track="@drawable/switch_track_gradient" />
-            </LinearLayout>
-
-            <!-- Баннер-статус под переключателем — фон/иконка/текст меняются
-                 в коде (SettingsFragment.kt) в зависимости от того, реально
-                 ли приложение исключено из оптимизации батареи прямо сейчас
-                 (а не просто от положения самого переключателя — Android не
-                 даёт менять этот статус иначе, чем через системный диалог, и
-                 переключатель тут — отражение реального состояния, не прямой
-                 рубильник). -->
-            <LinearLayout
-                android:id="@+id/batteryStatusBanner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/bg_status_warning"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="14dp">
-
-                <ImageView
-                    android:id="@+id/batteryStatusIcon"
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
-                    android:importantForAccessibility="no"
-                    android:src="@drawable/ic_warning_triangle"
-                    app:tint="@color/status_warning" />
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
 
                 <TextView
-                    android:id="@+id/textBatteryStatus"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1"
-                    android:text="@string/settings_battery_status_off_hint"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:text="@string/settings_battery_title"
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
                     android:textColor="@color/text_primary" />
 
                 <TextView
-                    android:id="@+id/buttonDisableBatteryOptimization"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:background="?attr/selectableItemBackground"
-                    android:padding="4dp"
-                    android:text="@string/settings_battery_action_configure"
-                    android:textColor="@color/accent_start"
-                    android:textStyle="bold" />
+                    android:layout_marginTop="2dp"
+                    android:text="@string/settings_battery_subtitle"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="@color/text_secondary" />
             </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonDisableBatteryOptimization"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_battery_action_disable"
+                android:textColor="@color/accent_start" />
         </LinearLayout>
 
         <LinearLayout

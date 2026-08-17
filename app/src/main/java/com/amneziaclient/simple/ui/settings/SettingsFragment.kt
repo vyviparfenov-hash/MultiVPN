@@ -10,8 +10,6 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.content.ContextCompat
-import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.transition.AutoTransition
 import androidx.transition.TransitionManager
@@ -54,7 +52,6 @@ class SettingsFragment : Fragment() {
         binding.rowLanguage.setOnClickListener { showLanguagePicker() }
 
         binding.buttonDisableBatteryOptimization.setOnClickListener { requestDisableBatteryOptimization() }
-        binding.switchBatteryOptimization.setOnCheckedChangeListener(batteryCheckedChangeListener)
         refreshBatteryOptimizationState()
 
         binding.switchAutoConnectOnOpen.isChecked = appSettingsRepository.isAutoConnectOnOpenEnabled()
@@ -106,63 +103,16 @@ class SettingsFragment : Fragment() {
         return pm.isIgnoringBatteryOptimizations(requireContext().packageName)
     }
 
-    /** Отдельный именованный листенер (не лямбда на месте) — чтобы можно
-     *  было временно снять его перед программной установкой isChecked в
-     *  refreshBatteryOptimizationState() и не словить бесконечный цикл
-     *  вызовов самого себя. */
-    private val batteryCheckedChangeListener: android.widget.CompoundButton.OnCheckedChangeListener =
-        android.widget.CompoundButton.OnCheckedChangeListener { _, isChecked ->
-            val actuallyExempted = isIgnoringBatteryOptimizations()
-            if (isChecked && !actuallyExempted) {
-                // Пользователь включает — запускаем системный диалог согласия;
-                // реальное состояние переключателя выставится по факту при
-                // возврате на экран (onResume), не раньше — Android не даёт
-                // включить это программно без действия пользователя в
-                // системном диалоге.
-                requestDisableBatteryOptimization()
-            } else if (!isChecked && actuallyExempted) {
-                // А вот ВЫКЛЮЧИТЬ уже данное исключение программно нельзя
-                // вообще никак — только руками в системных настройках. Не
-                // даём переключателю "соврать", что это уже случилось —
-                // сразу возвращаем обратно во включённое состояние и
-                // отправляем в системные настройки для ручного отключения.
-                binding.switchBatteryOptimization.setOnCheckedChangeListener(null)
-                binding.switchBatteryOptimization.isChecked = true
-                binding.switchBatteryOptimization.setOnCheckedChangeListener(batteryCheckedChangeListener)
-                requestDisableBatteryOptimization()
-            }
-        }
-
     private fun refreshBatteryOptimizationState() {
         val exempted = isIgnoringBatteryOptimizations()
-
-        binding.switchBatteryOptimization.setOnCheckedChangeListener(null)
-        binding.switchBatteryOptimization.isChecked = exempted
-        binding.switchBatteryOptimization.setOnCheckedChangeListener(batteryCheckedChangeListener)
-
-        binding.textBatterySubtitle.text = getString(
-            if (exempted) R.string.settings_battery_subtitle_on else R.string.settings_battery_subtitle_off
-        )
-
-        if (exempted) {
-            binding.batteryStatusBanner.setBackgroundResource(R.drawable.bg_status_success)
-            binding.batteryStatusIcon.setImageResource(R.drawable.ic_check_circle)
-            binding.batteryStatusIcon.imageTintList =
-                android.content.res.ColorStateList.valueOf(
-                    ContextCompat.getColor(requireContext(), R.color.status_ok)
-                )
-            binding.textBatteryStatus.text = getString(R.string.settings_battery_status_on_hint)
-            binding.buttonDisableBatteryOptimization.isVisible = false
+        binding.buttonDisableBatteryOptimization.text = if (exempted) {
+            getString(R.string.settings_battery_status_granted)
         } else {
-            binding.batteryStatusBanner.setBackgroundResource(R.drawable.bg_status_warning)
-            binding.batteryStatusIcon.setImageResource(R.drawable.ic_warning_triangle)
-            binding.batteryStatusIcon.imageTintList =
-                android.content.res.ColorStateList.valueOf(
-                    ContextCompat.getColor(requireContext(), R.color.status_warning)
-                )
-            binding.textBatteryStatus.text = getString(R.string.settings_battery_status_off_hint)
-            binding.buttonDisableBatteryOptimization.isVisible = true
+            getString(R.string.settings_battery_action_disable)
         }
+        // Когда уже отключена — кнопка нажимать нечего, оставляем просто как
+        // статус-текст (нет смысла второй раз просить у системы то же самое).
+        binding.buttonDisableBatteryOptimization.isClickable = !exempted
     }
 
     private fun requestDisableBatteryOptimization() {

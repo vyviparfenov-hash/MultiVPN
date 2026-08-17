@@ -90,8 +90,7 @@
     <string name="hint_search_profiles">Buscar perfiles</string>
 
     <!-- Aplicaciones -->
-    <string name="apps_screen_title_line1">Aplicaciones</string>
-    <string name="apps_screen_title_line2">de túnel</string>
+    <string name="apps_screen_title">Aplicaciones de túnel</string>
     <string name="apps_selection_saved">Lista guardada</string>
 
     <!-- Estadísticas de conexión (datos reales) -->
@@ -106,12 +105,9 @@
     <string name="settings_language_subtitle">Idioma de la interfaz de la aplicación</string>
     <string name="settings_language_picker_title">Elegir idioma</string>
     <string name="settings_battery_title">Optimización de batería</string>
-    <string name="settings_battery_subtitle_off">Para que la aplicación funcione en segundo plano y la conexión VPN sea estable</string>
-    <string name="settings_battery_subtitle_on">La aplicación funciona en segundo plano. La conexión VPN está protegida frente a las restricciones del sistema</string>
-    <string name="settings_battery_status_off_hint">Para una conexión VPN estable, se recomienda desactivar la optimización de batería</string>
-    <string name="settings_battery_status_on_hint">Optimización de batería desactivada
-La conexión VPN es estable</string>
-    <string name="settings_battery_action_configure">Configurar</string>
+    <string name="settings_battery_subtitle">Excluya la aplicación de la optimización de batería para una conexión VPN estable, sin interrupciones</string>
+    <string name="settings_battery_action_disable">Desactivar</string>
+    <string name="settings_battery_status_granted">Desactivada: todo correcto</string>
     <string name="settings_about_title">Acerca de la aplicación</string>
     <string name="settings_version_format">Versión %1$s</string>
 

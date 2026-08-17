@@ -1,52 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_root"
     android:orientation="vertical"
-    android:padding="24dp">
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:text="@string/apps_screen_title"
-        android:textAppearance="?attr/textAppearanceHeadlineSmall"
-        android:textColor="@color/text_primary"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/textSplitTunnelUnsupportedWarning"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:background="@drawable/bg_card"
-        android:padding="12dp"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
-        android:textColor="@color/status_warning"
-        android:visibility="gone"
-        tools:text="Текущий протокол (VLESS) не поддерживает выбор приложений — весь трафик всегда идёт через VPN целиком, выбор ниже не будет иметь эффекта."
-        tools:visibility="visible" />
+    android:padding="16dp">
 
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/searchInput"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_card"
         android:hint="@string/hint_search_apps"
-        android:inputType="text"
-        android:padding="12dp"
-        android:textColor="@color/text_primary"
-        android:textColorHint="@color/text_secondary" />
+        android:inputType="text" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonSelectAll"
@@ -54,8 +25,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/button_select_all"
-            android:textColor="@color/accent_start" />
+            android:text="@string/button_select_all" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonDeselectAll"
@@ -63,8 +33,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/button_deselect_all"
-            android:textColor="@color/text_secondary" />
+            android:text="@string/button_deselect_all" />
     </LinearLayout>
 
     <FrameLayout
@@ -89,7 +58,6 @@
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:layout_marginTop="8dp"
-        app:backgroundTint="@color/accent_start"
         android:text="@string/button_apply" />
 
 </LinearLayout>
